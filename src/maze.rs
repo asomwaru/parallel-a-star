@@ -54,6 +54,11 @@ where
     V: IVertex<i32>,
     E: IWeightedEdge<i32, V>,
 {
+    /**
+     * Generates maze from the given size.
+     * 
+     * Returns pointer to Maze<V, E>.
+     */
     pub fn new(size: usize) -> Self {
         let grid = Self::init_grid(size);
         let mut grid_graph: Graph<V, E> = Self::init_graph(&grid, Point2D::new(0, 0));
@@ -97,6 +102,11 @@ where
         };
     }
 
+    /**
+     * Finds path on the grid between src and dest.
+     * 
+     * Returns Vec<Point2D<usize>> containing Point2D obejects represented for each (x,y) pair on the graph between src and dest.
+     */
     fn find_path_on_grid(
         grid: &Vec<Vec<MazeCell<i32>>>,
         src: Point2D<usize>,
@@ -161,6 +171,11 @@ where
         return path;
     }
 
+    /**
+     * Reconstructs path from src to dest using paths vector.
+     * 
+     * Returns Vec<usize> containing cells between src and dest. 
+     */
     fn reconstruct_path(paths: &Vec<usize>, src: usize, dest: usize) -> Vec<usize> {
         let mut path: Vec<usize> = Vec::new();
 
@@ -177,6 +192,12 @@ where
         return path;
     }
 
+    /**
+     * Extends grid to make each cell being wrapped around the "barrier" of cells with width == 1.
+     * Each cell will have MazeCell object containing information about the cell type (e.g. Vertex, Border, None, etc.).
+     * 
+     * Returns Vec<Vec<MazeCell<i32>>>.
+     */
     fn extend_grid(grid: &Vec<Vec<i32>>) -> Vec<Vec<MazeCell<i32>>> {
         let size = grid.len();
 
@@ -204,7 +225,13 @@ where
 
         return extended_grid;
     }
-
+    
+    /**
+     * Renders maze into the Vec<Vec<String>> format.
+     * Rendered version of the maze could be used for clear representation of the maze in file/console.
+     * 
+     * Returns Vec<Vec<String>>.
+     */
     pub fn render_maze(&self) -> Vec<Vec<String>> {
         let mut rendered_grid: Vec<Vec<String>> =
             vec![vec![String::new(); self.grid.len()]; self.grid.len()];
@@ -237,6 +264,13 @@ where
         return rendered_grid;
     }
 
+    /**
+     * Creates a graph from the grid beginning at start_pos.
+     * Graph will have |V| = grid.len() * grid[0].len() vertices and all vertices will be connected by the Edge.
+     * Each Edge will have a randomly assigned weight from 1 to grid.len() * grid[0].len().
+     * 
+     * Returns Graph<V, E>.
+     */
     fn init_graph(grid: &Vec<Vec<i32>>, start_pos: Point2D<usize>) -> Graph<V, E> {
         let height = grid.len();
         let width = grid[0].len();
@@ -311,6 +345,12 @@ where
         return Graph::new(adj_map);
     }
 
+    /**
+     * Creates a grid of specified size.
+     * Each cell of the grid will be numbered in the increasing order from 0 to size - 1.
+     * 
+     * Returns a Vec<Vec<i32>> representation of the grid.
+     */
     fn init_grid(size: usize) -> Vec<Vec<i32>> {
         let mut grid = vec![vec![0; size]; size];
 
