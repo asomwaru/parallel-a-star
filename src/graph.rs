@@ -129,10 +129,20 @@ where
     V: IVertex<i32>,
     E: IWeightedEdge<i32, V>,
 {
+    /**
+     * Initializes a Graph object.
+     * 
+     * Returns pointer to Graph<V, E>.
+     */
     pub fn new(adj_map: HashMap<V, HashSet<E>>) -> Self {
         return Graph { adj_map: adj_map };
     }
 
+    /**
+     * Finds Minimmum Spanning Tree in the graph.
+     * 
+     * Returns HashSet<E> containing all E of the the MST.
+     */
     pub fn find_mst(&mut self, algorithm: MSTAlgorithms) -> HashSet<E> {
         return match algorithm {
             MSTAlgorithms::Kruskal => Self::kruskal(self),
@@ -140,6 +150,11 @@ where
         };
     }
 
+    /**
+     * Kruskal's algorithm for finding MST in the graph.
+     * 
+     * Returns HashSet<E> containing all E of the the MST.
+     */
     fn kruskal(&mut self) -> HashSet<E> {
         let mut set: HashSet<E> = HashSet::new();
 
@@ -168,10 +183,21 @@ where
         return set;
     }
 
+    //#[TODO: 1]: Implement Prim's algorithm for MST. 
+    /**
+     * Prim's algorithm for finding MST in the graph.
+     * 
+     * Returns HashSet<E> containing all E of the the MST.
+     */
     fn prim() -> HashSet<E> {
         return HashSet::new();
     }
 
+    /**
+     * Find operation of the Disjoint Set algorithm.
+     * 
+     * Returns parent V of the v.
+     */
     fn find(subset: &mut HashMap<V, V>, v: V) -> V {
         if *subset.get(&v).unwrap() != v {
             let v = Self::find(subset, *subset.get(&v).unwrap());
@@ -182,6 +208,11 @@ where
         return v;
     }
 
+    /**
+     * Union operation of the Disjoint Set algorithm.
+     * 
+     * Returns true if union could be performed and false otherwise.
+     */
     fn union(subset: &mut HashMap<V, V>, v0: V, v1: V) -> bool {
         let v0_root = Self::find(subset, v0);
         let v1_root = Self::find(subset, v1);
