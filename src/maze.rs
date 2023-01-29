@@ -45,7 +45,7 @@ pub struct Point2D<T> {
 
 impl<T> Point2D<T> {
     pub fn new(x: T, y: T) -> Self {
-        return Point2D { x: x, y: y};
+        return Point2D { x: x, y: y };
     }
 }
 

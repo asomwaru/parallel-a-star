@@ -1,9 +1,14 @@
-use std::{fs::{File, self}, io::Write, thread, time::Duration};
+use std::{
+    fs::{self, File},
+    io::Write,
+    thread,
+    time::Duration,
+};
 
 use graph::{Vertex, WeightedEdge};
 
-mod maze;
 mod graph;
+mod maze;
 
 fn main() {
     loop {

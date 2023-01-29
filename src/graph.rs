@@ -114,7 +114,7 @@ pub trait IWeightedEdge<T, V>: Ord + Hash + Copy + Debug {
 
     fn get_src(&self) -> V;
     fn get_src_mut(&mut self) -> V;
-    
+
     fn get_weight(&self) -> T;
     fn get_weight_mut(&mut self) -> T;
 }
@@ -127,7 +127,7 @@ pub struct Graph<V, E> {
 impl<V, E> Graph<V, E>
 where
     V: IVertex<i32>,
-    E: IWeightedEdge<i32, V>
+    E: IWeightedEdge<i32, V>,
 {
     pub fn new(adj_map: HashMap<V, HashSet<E>>) -> Self {
         return Graph { adj_map: adj_map };
