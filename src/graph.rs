@@ -1,4 +1,4 @@
-use std::cmp::{Ordering};
+use std::cmp::Ordering;
 use std::collections::{HashMap, HashSet};
 
 use binary_heap_plus::BinaryHeap;
@@ -18,7 +18,11 @@ pub struct WeightedEdge<T, V> {
     weight: T,
 }
 
-impl<T: Hash + Ord + Copy, V: IVertex<i32>> Ord for WeightedEdge<T, V> {
+impl<T, V> Ord for WeightedEdge<T, V>
+where
+    T: Hash + Ord + Copy,
+    V: IVertex<i32>,
+{
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
         if self.weight > other.weight {
             return Ordering::Greater;
@@ -30,7 +34,11 @@ impl<T: Hash + Ord + Copy, V: IVertex<i32>> Ord for WeightedEdge<T, V> {
     }
 }
 
-impl<T: Hash + Ord + Copy + Debug, V: IVertex<i32>> IWeightedEdge<T, V> for WeightedEdge<T, V> {
+impl<T, V> IWeightedEdge<T, V> for WeightedEdge<T, V>
+where
+    T: Hash + Ord + Copy + Debug,
+    V: IVertex<i32>,
+{
     fn new(src: V, dest: V, weight: T) -> Self
     where
         Self: IWeightedEdge<T, V>,
@@ -53,10 +61,12 @@ impl<T: Hash + Ord + Copy + Debug, V: IVertex<i32>> IWeightedEdge<T, V> for Weig
     fn get_src(&self) -> V {
         return self.src;
     }
-
 }
 
-impl<T: Ord + Hash + Copy + Debug> IVertex<T> for Vertex<T> {
+impl<T> IVertex<T> for Vertex<T>
+where
+    T: Ord + Hash + Copy + Debug,
+{
     fn new(val: T) -> Self
     where
         Self: IVertex<T>,
@@ -92,7 +102,11 @@ pub struct Graph<V, E> {
     adj_map: HashMap<V, HashSet<E>>,
 }
 
-impl<V: IVertex<i32>, E: IWeightedEdge<i32, V>> Graph<V, E> {
+impl<V, E> Graph<V, E>
+where
+    V: IVertex<i32>,
+    E: IWeightedEdge<i32, V>
+{
     pub fn new(adj_map: HashMap<V, HashSet<E>>) -> Self {
         return Graph { adj_map: adj_map };
     }
