@@ -11,12 +11,8 @@ mod graph;
 mod maze;
 
 fn main() {
-    loop {
-        let maze: maze::Maze<Vertex<i32>, WeightedEdge<i32, Vertex<i32>>> = maze::Maze::new(15);
-        write_grid_to_file("test.txt".to_string(), &maze.render_maze());
-
-        thread::sleep(Duration::from_millis(500));
-    }
+    let maze: maze::Maze<Vertex<i32>, WeightedEdge<i32, Vertex<i32>>> = maze::Maze::new(15);
+    write_grid_to_file("test.txt".to_string(), &maze.render_maze());
 }
 
 fn write_grid_to_file(file_name: String, grid: &Vec<Vec<String>>) {
