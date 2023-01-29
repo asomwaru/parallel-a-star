@@ -8,10 +8,10 @@ use rand::Rng;
 use crate::graph::{Graph, IVertex, IWeightedEdge};
 
 pub struct Maze<V, E> {
-    pub grid: Vec<Vec<MazeCell<i32>>>,
-    pub grid_graph: Graph<V, E>,
-    pub vertex_to_grid_map: HashMap<V, Point2D<usize>>,
-    pub mst: HashSet<E>,
+    grid: Vec<Vec<MazeCell<i32>>>,
+    grid_graph: Graph<V, E>,
+    vertex_to_grid_map: HashMap<V, Point2D<usize>>,
+    mst: HashSet<E>,
 }
 
 #[derive(Clone, Debug)]
@@ -43,6 +43,12 @@ pub struct Point2D<T> {
     y: T,
 }
 
+impl<T> Point2D<T> {
+    pub fn new(x: T, y: T) -> Self {
+        return Point2D { x: x, y: y};
+    }
+}
+
 impl<V, E> Maze<V, E>
 where
     V: IVertex<i32>,
@@ -50,7 +56,7 @@ where
 {
     pub fn new(size: usize) -> Self {
         let grid = Self::init_grid(size);
-        let mut grid_graph: Graph<V, E> = Self::init_graph(&grid, Point2D { x: 0, y: 0 });
+        let mut grid_graph: Graph<V, E> = Self::init_graph(&grid, Point2D::new(0, 0));
         let mst = grid_graph.find_mst(crate::graph::MSTAlgorithms::Kruskal);
 
         let mut extended_grid = Self::extend_grid(&grid);
@@ -60,7 +66,7 @@ where
         extended_grid.iter().enumerate().for_each(|(i, vector)| {
             vector.iter().enumerate().for_each(|(j, val)| {
                 if val.cell_type == CellType::Vertex {
-                    vertex_to_grid_map.insert(V::new(val.val), Point2D { x: i, y: j });
+                    vertex_to_grid_map.insert(V::new(val.val), Point2D::new(i, j));
                 }
             });
         });
@@ -149,7 +155,7 @@ where
             let x = pos / width;
             let y = pos % height;
 
-            path.push(Point2D { x: x, y: y });
+            path.push(Point2D::new(x, y));
         });
 
         return path;

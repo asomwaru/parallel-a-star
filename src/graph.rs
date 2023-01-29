@@ -54,11 +54,23 @@ where
         return self.weight;
     }
 
+    fn get_weight_mut(&mut self) -> T {
+        return self.weight;
+    }
+
     fn get_dest(&self) -> V {
         return self.dest;
     }
 
+    fn get_dest_mut(&mut self) -> V {
+        return self.dest;
+    }
+
     fn get_src(&self) -> V {
+        return self.src;
+    }
+
+    fn get_src_mut(&mut self) -> V {
         return self.src;
     }
 }
@@ -77,6 +89,10 @@ where
     fn get_val(&self) -> T {
         return self.val;
     }
+
+    fn get_val_mut(&mut self) -> T {
+        return self.val;
+    }
 }
 
 pub trait IVertex<T>: Ord + Hash + Copy + Debug {
@@ -85,6 +101,7 @@ pub trait IVertex<T>: Ord + Hash + Copy + Debug {
         Self: IVertex<T>;
 
     fn get_val(&self) -> T;
+    fn get_val_mut(&mut self) -> T;
 }
 
 pub trait IWeightedEdge<T, V>: Ord + Hash + Copy + Debug {
@@ -93,8 +110,13 @@ pub trait IWeightedEdge<T, V>: Ord + Hash + Copy + Debug {
         Self: IWeightedEdge<T, V>;
 
     fn get_dest(&self) -> V;
+    fn get_dest_mut(&mut self) -> V;
+
     fn get_src(&self) -> V;
+    fn get_src_mut(&mut self) -> V;
+    
     fn get_weight(&self) -> T;
+    fn get_weight_mut(&mut self) -> T;
 }
 
 #[derive(Debug)]
