@@ -1,7 +1,7 @@
 use std::{
     fmt::Display,
     fs::{self, File},
-    io::Write
+    io::Write, time::Duration, thread,
 };
 
 use colored::Colorize;
@@ -14,23 +14,27 @@ mod graph;
 mod path_finder;
 
 fn main() {
-    let maze: Maze::Maze<Vertex<i32>, WeightedEdge<i32, Vertex<i32>>> = Maze::Maze::new(10, 20);
+    loop {
+        let maze: Maze::Maze<Vertex<i32>, WeightedEdge<i32, Vertex<i32>>> = Maze::Maze::new(30, 60);
 
-    let path_finder = PathFinder::new(maze.get_maze());
-    let maze_with_path = path_finder.show_path(path_finder.find_path(
-        Point2D::new(1, 1),
-        Point2D::new(19, 39),
-        true,
-        path_finder::SearchAlgorithms::DFS,
-    ));
+        let path_finder = PathFinder::new(maze.get_maze());
+        let maze_with_path = path_finder.show_path(path_finder.find_path(
+            Point2D::new(1, 1),
+            Point2D::new(59, 119),
+            true,
+            path_finder::SearchAlgorithms::BidirectionalBFS,
+        ));
 
-    write!(std::io::stdout(), "{}", to_string(&maze_with_path, true)).unwrap();
-    // write!(get_file("maze_with_path.txt".to_string()), "{}", to_string(&maze_with_path, false)).unwrap();
+        write!(std::io::stdout(), "{}", to_string(&maze_with_path, true)).unwrap();
+        // write!(get_file("maze_with_path.txt".to_string()), "{}", to_string(&maze_with_path, false)).unwrap();
+        
+        thread::sleep(Duration::from_millis(100));
+    }
 }
 
 /**
  * Creates a file with specified file_name for "appending" operation.
- * 
+ *
  * Returns File pointer.
  */
 fn get_file(file_name: String) -> File {
@@ -48,7 +52,7 @@ fn get_file(file_name: String) -> File {
 /**
  * Converts Maze grid to the String.
  * Colored parameter is only applicable if string is going to be printed in console.
- * 
+ *
  * Returns String.
  */
 fn to_string<T: Display>(grid: &Vec<Vec<MazeCell<T>>>, colored: bool) -> String {

@@ -161,7 +161,7 @@ where
                 *grid_src,
                 *grid_dest,
                 false,
-                SearchAlgorithms::BFS,
+                SearchAlgorithms::BidirectionalBFS,
             );
 
             path.iter().for_each(|grid_pos| {
