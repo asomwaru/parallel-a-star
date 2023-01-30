@@ -1,6 +1,7 @@
 use std::{
     collections::{HashMap, HashSet, VecDeque},
-    hash::Hash
+    hash::Hash,
+    fmt::Display
 };
 
 use rand::Rng;
@@ -49,7 +50,7 @@ impl<T> Point2D<T> {
     }
 }
 
-impl<V, E> std::fmt::Display for Maze<V, E>
+impl<V, E> Display for Maze<V, E>
 where
     V: IVertex<i32>,
     E: IWeightedEdge<i32, V>,

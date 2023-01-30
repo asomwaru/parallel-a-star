@@ -9,7 +9,7 @@ mod graph;
 mod maze;
 
 fn main() {
-    let maze: maze::Maze<Vertex<i32>, WeightedEdge<i32, Vertex<i32>>> = maze::Maze::new(20);
+    let maze: maze::Maze<Vertex<i32>, WeightedEdge<i32, Vertex<i32>>> = maze::Maze::new(5);
     write_to_file("maze.txt".to_string(), &maze);
 
     // write_grid_to_file("test.txt".to_string(), &maze.render_maze());
