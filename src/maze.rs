@@ -1,6 +1,6 @@
 use std::{
     collections::{HashMap, HashSet, VecDeque},
-    hash::Hash,
+    hash::Hash
 };
 
 use rand::Rng;
@@ -49,6 +49,28 @@ impl<T> Point2D<T> {
     }
 }
 
+impl<V, E> std::fmt::Display for Maze<V, E>
+where
+    V: IVertex<i32>,
+    E: IWeightedEdge<i32, V>,
+{
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let rendered_maze = self.render_maze();
+
+        let mut output = String::new();
+
+        rendered_maze.iter().for_each(|vector| {
+            vector.iter().for_each(|val| {
+                output.push_str(val);
+            });
+
+            output.push_str("\n");
+        });
+
+        return write!(f, "{}", output);
+    }
+}
+
 impl<V, E> Maze<V, E>
 where
     V: IVertex<i32>,
@@ -56,7 +78,7 @@ where
 {
     /**
      * Generates maze from the given size.
-     * 
+     *
      * Returns pointer to Maze<V, E>.
      */
     pub fn new(size: usize) -> Self {
@@ -102,9 +124,13 @@ where
         };
     }
 
+    pub fn get_maze(&self) -> Vec<Vec<MazeCell<i32>>> {
+        return self.grid.clone();
+    }
+
     /**
      * Finds path on the grid between src and dest.
-     * 
+     *
      * Returns Vec<Point2D<usize>> containing Point2D obejects represented for each (x,y) pair on the graph between src and dest.
      */
     fn find_path_on_grid(
@@ -173,8 +199,8 @@ where
 
     /**
      * Reconstructs path from src to dest using paths vector.
-     * 
-     * Returns Vec<usize> containing cells between src and dest. 
+     *
+     * Returns Vec<usize> containing cells between src and dest.
      */
     fn reconstruct_path(paths: &Vec<usize>, src: usize, dest: usize) -> Vec<usize> {
         let mut path: Vec<usize> = Vec::new();
@@ -195,7 +221,7 @@ where
     /**
      * Extends grid to make each cell being wrapped around the "barrier" of cells with width == 1.
      * Each cell will have MazeCell object containing information about the cell type (e.g. Vertex, Border, None, etc.).
-     * 
+     *
      * Returns Vec<Vec<MazeCell<i32>>>.
      */
     fn extend_grid(grid: &Vec<Vec<i32>>) -> Vec<Vec<MazeCell<i32>>> {
@@ -225,11 +251,11 @@ where
 
         return extended_grid;
     }
-    
+
     /**
      * Renders maze into the Vec<Vec<String>> format.
      * Rendered version of the maze could be used for clear representation of the maze in file/console.
-     * 
+     *
      * Returns Vec<Vec<String>>.
      */
     pub fn render_maze(&self) -> Vec<Vec<String>> {
@@ -268,7 +294,7 @@ where
      * Creates a graph from the grid beginning at start_pos.
      * Graph will have |V| = grid.len() * grid[0].len() vertices and all vertices will be connected by the Edge.
      * Each Edge will have a randomly assigned weight from 1 to grid.len() * grid[0].len().
-     * 
+     *
      * Returns Graph<V, E>.
      */
     fn init_graph(grid: &Vec<Vec<i32>>, start_pos: Point2D<usize>) -> Graph<V, E> {
@@ -348,7 +374,7 @@ where
     /**
      * Creates a grid of specified size.
      * Each cell of the grid will be numbered in the increasing order from 0 to size - 1.
-     * 
+     *
      * Returns a Vec<Vec<i32>> representation of the grid.
      */
     fn init_grid(size: usize) -> Vec<Vec<i32>> {
