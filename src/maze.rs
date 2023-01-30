@@ -34,11 +34,13 @@ impl<T> MazeCell<T> {
 impl<T> Display for MazeCell<T> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let output = match self.cell_type {
-            CellType::UpDownBorder => format!("―+―"),
-            CellType::LeftRightBorder => format!(" | "),
+            CellType::UpDownBorder => format!("{}", "―+―"),
+            CellType::LeftRightBorder => format!(" {} ", "|"),
             CellType::Vertex => format!("   "),
             CellType::None => format!("   "),
-            CellType::Path => format!(" * ")
+            CellType::Path => format!(" {} ", "*"),
+            CellType::Start => format!(" {} ", "o"),
+            CellType::End => format!(" {} ", "x")
         };
 
         return write!(f, "{}", output);
@@ -51,6 +53,8 @@ pub enum CellType {
     LeftRightBorder,
     UpDownBorder,
     Path,
+    Start,
+    End,
     None,
 }
 

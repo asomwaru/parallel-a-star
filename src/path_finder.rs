@@ -34,11 +34,20 @@ where
     pub fn show_path(&self, path: Vec<Point2D<usize>>) -> Vec<Vec<MazeCell<T>>> {
         let mut maze_with_path: Vec<Vec<MazeCell<T>>> = self.maze_grid.clone();
 
+        let src = path.first().unwrap();
+        let dest = path.last().unwrap();
+
         path.iter().for_each(|pos| {
             let x = pos.x;
             let y = pos.y;
 
-            maze_with_path[x][y].cell_type = CellType::Path;
+            if pos == src {
+                maze_with_path[src.x][src.y].cell_type = CellType::Start;
+            } else if pos == dest {
+                maze_with_path[dest.x][dest.y].cell_type = CellType::End;
+            } else {
+                maze_with_path[x][y].cell_type = CellType::Path;
+            }
         });
 
         return maze_with_path;
@@ -47,7 +56,7 @@ where
     /**
      * Finds path on the grid between src and dest using specified algorithm.
      * If src or dest doesn't point to the eligible CellType, returns empty path.
-     * 
+     *
      * Returns Vec<Point2D<usize>> containing Point2D obejects represented for each (x,y) pair on the graph between src and dest.
      */
     pub fn find_path(
