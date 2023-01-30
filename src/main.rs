@@ -40,7 +40,7 @@ fn main() {
 fn get_file(file_name: String) -> File {
     File::create(&file_name).unwrap();
 
-    let mut fi = fs::OpenOptions::new()
+    let fi = fs::OpenOptions::new()
         .write(true)
         .append(true)
         .open(&file_name)
