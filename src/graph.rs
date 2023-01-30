@@ -121,7 +121,7 @@ pub trait IWeightedEdge<T, V>: Ord + Hash + Copy + Debug {
 
 #[derive(Debug)]
 pub struct Graph<V, E> {
-    adj_map: HashMap<V, HashSet<E>>,
+    pub adj_map: HashMap<V, HashSet<E>>,
 }
 
 impl<V, E> Graph<V, E>

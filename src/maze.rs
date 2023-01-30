@@ -6,8 +6,11 @@ use std::{
 
 use rand::Rng;
 
-use crate::{graph::{Graph, IVertex, IWeightedEdge}, path_finder::SearchAlgorithms};
 use crate::path_finder::PathFinder;
+use crate::{
+    graph::{Graph, IVertex, IWeightedEdge},
+    path_finder::SearchAlgorithms,
+};
 
 pub struct Maze<V, E> {
     grid: Vec<Vec<MazeCell<i32>>>,
@@ -31,16 +34,19 @@ impl<T> MazeCell<T> {
     }
 }
 
-impl<T> Display for MazeCell<T> {
+impl<T> Display for MazeCell<T>
+where
+    T: Display,
+{
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let output = match self.cell_type {
             CellType::UpDownBorder => format!("{}", "―+―"),
             CellType::LeftRightBorder => format!(" {} ", "|"),
-            CellType::Vertex => format!("   "),
+            CellType::Vertex => format!("   ",),
             CellType::None => format!("   "),
             CellType::Path => format!(" {} ", "*"),
             CellType::Start => format!(" {} ", "o"),
-            CellType::End => format!(" {} ", "x")
+            CellType::End => format!(" {} ", "x"),
         };
 
         return write!(f, "{}", output);
@@ -67,6 +73,15 @@ pub struct Point2D<T> {
 impl<T> Point2D<T> {
     pub fn new(x: T, y: T) -> Self {
         return Point2D { x: x, y: y };
+    }
+}
+
+impl<T> Display for Point2D<T>
+where
+    T: Display,
+{
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        return write!(f, "({},{})", self.x, self.y);
     }
 }
 
@@ -117,8 +132,9 @@ where
      *
      * Returns pointer to Maze<V, E>.
      */
-    pub fn new(size: usize) -> Self {
-        let grid = Self::init_grid(size);
+    pub fn new(height: usize, width: usize) -> Self {
+        let grid = Self::init_grid(height, width);
+
         let mut grid_graph: Graph<V, E> = Self::init_graph(&grid, Point2D::new(0, 0));
         let mst = grid_graph.find_mst(crate::graph::MSTAlgorithms::Kruskal);
 
@@ -141,8 +157,12 @@ where
             let grid_src = vertex_to_grid_map.get(&src).unwrap();
             let grid_dest = vertex_to_grid_map.get(&dest).unwrap();
 
-            let path =
-                PathFinder::new(extended_grid.clone()).find_path(*grid_src, *grid_dest, false, SearchAlgorithms::BFS);
+            let path = PathFinder::new(extended_grid.clone()).find_path(
+                *grid_src,
+                *grid_dest,
+                false,
+                SearchAlgorithms::BFS,
+            );
 
             path.iter().for_each(|grid_pos| {
                 let cell_type = extended_grid[grid_pos.x][grid_pos.y].cell_type.clone();
@@ -172,10 +192,11 @@ where
      * Returns Vec<Vec<MazeCell<i32>>>.
      */
     fn extend_grid(grid: &Vec<Vec<i32>>) -> Vec<Vec<MazeCell<i32>>> {
-        let size = grid.len();
+        let height = grid.len();
+        let width = grid[0].len();
 
         let mut extended_grid =
-            vec![vec![MazeCell::new(-1, CellType::None); size * 2 + 1]; size * 2 + 1];
+            vec![vec![MazeCell::new(-1, CellType::None); width * 2 + 1]; height * 2 + 1];
 
         extended_grid
             .iter_mut()
@@ -305,8 +326,8 @@ where
      *
      * Returns a Vec<Vec<i32>> representation of the grid.
      */
-    fn init_grid(size: usize) -> Vec<Vec<i32>> {
-        let mut grid = vec![vec![0; size]; size];
+    fn init_grid(height: usize, width: usize) -> Vec<Vec<i32>> {
+        let mut grid = vec![vec![0; width]; height];
 
         let mut counter = 0;
         grid.iter_mut().for_each(|vector| {

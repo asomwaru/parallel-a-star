@@ -150,7 +150,7 @@ where
 
         reconstructed_path.iter().for_each(|pos| {
             let x = pos / width;
-            let y = pos % height;
+            let y = pos % width;
 
             path.push(Point2D::new(x, y));
         });
