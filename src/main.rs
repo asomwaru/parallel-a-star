@@ -28,6 +28,11 @@ fn main() {
     // write!(get_file("maze_with_path.txt".to_string()), "{}", to_string(&maze_with_path, false)).unwrap();
 }
 
+/**
+ * Creates a file with specified file_name for "appending" operation.
+ * 
+ * Returns File pointer.
+ */
 fn get_file(file_name: String) -> File {
     File::create(&file_name).unwrap();
 
@@ -40,6 +45,12 @@ fn get_file(file_name: String) -> File {
     return fi;
 }
 
+/**
+ * Converts Maze grid to the String.
+ * Colored parameter is only applicable if string is going to be printed in console.
+ * 
+ * Returns String.
+ */
 fn to_string<T: Display>(grid: &Vec<Vec<MazeCell<T>>>, colored: bool) -> String {
     let mut output = String::with_capacity(grid.len() * grid[0].len());
 

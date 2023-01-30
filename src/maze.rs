@@ -14,7 +14,7 @@ use crate::{
 
 pub struct Maze<V, E> {
     grid: Vec<Vec<MazeCell<i32>>>,
-    grid_graph: Graph<V, E>,
+    graph: Graph<V, E>,
     vertex_to_grid_map: HashMap<V, Point2D<usize>>,
     mst: HashSet<E>,
 }
@@ -115,7 +115,7 @@ where
     fn default() -> Self {
         Self {
             grid: Vec::new(),
-            grid_graph: Graph::new(HashMap::new()),
+            graph: Graph::new(HashMap::new()),
             vertex_to_grid_map: HashMap::new(),
             mst: HashSet::new(),
         }
@@ -175,7 +175,7 @@ where
 
         return Maze {
             grid: extended_grid,
-            grid_graph: grid_graph,
+            graph: grid_graph,
             vertex_to_grid_map: vertex_to_grid_map,
             mst: mst,
         };
