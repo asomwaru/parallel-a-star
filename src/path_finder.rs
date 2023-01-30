@@ -1,4 +1,4 @@
-use std::collections::{HashSet, VecDeque};
+use std::collections::{HashMap, HashSet, VecDeque};
 
 use crate::Maze::{CellType, MazeCell, Point2D};
 
@@ -21,6 +21,7 @@ pub enum SearchAlgorithms {
     BFS,
     BidirectionalBFS,
     DFS,
+    Dijkstra,
 }
 
 impl<T> PathFinder<T>
@@ -80,6 +81,7 @@ where
                 self.find_path_bidirectional_bfs(src, dest, consider_obstacles)
             }
             SearchAlgorithms::DFS => self.find_path_dfs(src, dest, consider_obstacles),
+            SearchAlgorithms::Dijkstra => self.find_path_dijkstra(src, dest, consider_obstacles),
         };
     }
 
@@ -119,7 +121,7 @@ where
         let mut intersection_pos_hashed: i32 = -1;
 
         while !src_queue.is_empty() && !dest_queue.is_empty() {
-            self.perform_bfs_queue_operation(
+            Self::perform_bfs_queue_operation(
                 &mut src_queue,
                 &grid,
                 &mut src_visited,
@@ -127,7 +129,7 @@ where
                 dest,
                 consider_obstacles,
             );
-            self.perform_bfs_queue_operation(
+            Self::perform_bfs_queue_operation(
                 &mut dest_queue,
                 &grid,
                 &mut dest_visited,
@@ -181,23 +183,13 @@ where
             }
         }
 
-        let mut path = Vec::new();
-
-        reconstructed_path.iter().for_each(|pos| {
-            let x = pos / width;
-            let y = pos % width;
-
-            path.push(Point2D::new(x, y));
-        });
-
-        return path;
+        return Self::convert_hashed_path(reconstructed_path, width);
     }
 
     /**
      * Performs a single BFS iteration on the given queue.
      */
     fn perform_bfs_queue_operation(
-        &self,
         queue: &mut VecDeque<usize>,
         grid: &Vec<Vec<MazeCell<T>>>,
         visited: &mut HashSet<usize>,
@@ -248,6 +240,103 @@ where
                 break;
             }
         }
+    }
+
+    /**
+     * Finds path on the grid between src and dest using Dijkstra.
+     *
+     * Returns Vec<Point2D<usize>> containing Point2D obejects represented for each (x,y) pair on the graph between src and dest.
+     */
+    fn find_path_dijkstra(
+        &self,
+        src: Point2D<usize>,
+        dest: Point2D<usize>,
+        consider_obstacles: bool,
+    ) -> Vec<Point2D<usize>> {
+        let grid = self.maze_grid.clone();
+
+        let width = grid[0].len();
+        let height = grid.len();
+
+        let mut paths: Vec<usize> = vec![0; width * height];
+        paths.iter_mut().enumerate().for_each(|(i, val)| *val = i);
+
+        let mut visited: HashSet<usize> = HashSet::new();
+
+        let mut distances: Vec<usize> = vec![usize::MAX; width * height];
+        distances[src.x * width + src.y] = 0;
+
+        let mut counter = 0;
+        while counter < width * height - 1 {
+            let mut hashed_pos = 0;
+            let mut min = usize::MAX;
+
+            for pos in 0..(width * height) {
+                if !visited.contains(&pos) && min > distances[pos] {
+                    min = distances[pos];
+                    hashed_pos = pos;
+                }
+            }
+
+            counter += 1;
+
+            visited.insert(hashed_pos);
+
+            let x = hashed_pos / width;
+            let y = hashed_pos % width;
+
+            let directions: [i32; 8] = [-1, 0, 1, 0, 0, -1, 0, 1];
+
+            for i in (0..directions.len() - 1).step_by(2) {
+                let next_x = (directions[i] + x as i32) as usize;
+                let next_y = (directions[i + 1] + y as i32) as usize;
+
+                let hashed_next_pos = next_x * width + next_y;
+
+                if next_x >= height || next_y >= width || visited.contains(&hashed_next_pos) {
+                    continue;
+                }
+
+                let next_cell_type = grid[next_x][next_y].cell_type.clone();
+
+                let is_next_cell_border = next_cell_type == CellType::LeftRightBorder
+                    || next_cell_type == CellType::UpDownBorder;
+
+                if consider_obstacles && is_next_cell_border {
+                    continue;
+                }
+
+                let next_cell_distance = distances[hashed_pos] + 1;
+
+                if distances[hashed_next_pos] > next_cell_distance {
+                    distances[hashed_next_pos] = next_cell_distance;
+                    paths[hashed_next_pos] = hashed_pos;
+                }
+
+                if x == dest.x && y == dest.y {
+                    counter = width * height;
+                    break;
+                }
+            }
+        }
+
+        let reconstructed_path =
+            Self::reconstruct_path(&paths, src.x * width + src.y, dest.x * width + dest.y);
+
+        return Self::convert_hashed_path(reconstructed_path, width);
+    }
+
+    fn convert_hashed_path(hashed_path: Vec<usize>, width: usize) -> Vec<Point2D<usize>> {
+        let mut path = Vec::new();
+
+        hashed_path.iter().for_each(|pos| {
+            let x = pos / width;
+            let y = pos % width;
+
+            path.push(Point2D::new(x, y));
+        });
+
+        return path;
     }
 
     /**
@@ -319,16 +408,8 @@ where
 
         let reconstructed_path =
             Self::reconstruct_path(&paths, src.x * width + src.y, dest.x * width + dest.y);
-        let mut path: Vec<Point2D<usize>> = Vec::new();
 
-        reconstructed_path.iter().for_each(|pos| {
-            let x = pos / width;
-            let y = pos % width;
-
-            path.push(Point2D::new(x, y));
-        });
-
-        return path;
+        return Self::convert_hashed_path(reconstructed_path, width);
     }
 
     /**
@@ -356,7 +437,7 @@ where
         queue.push_back(src.x * width + src.y);
 
         while !queue.is_empty() {
-            self.perform_bfs_queue_operation(
+            Self::perform_bfs_queue_operation(
                 &mut queue,
                 &grid,
                 &mut visited,
@@ -368,16 +449,8 @@ where
 
         let reconstructed_path =
             Self::reconstruct_path(&paths, src.x * width + src.y, dest.x * width + dest.y);
-        let mut path: Vec<Point2D<usize>> = Vec::new();
 
-        reconstructed_path.iter().for_each(|pos| {
-            let x = pos / width;
-            let y = pos % width;
-
-            path.push(Point2D::new(x, y));
-        });
-
-        return path;
+        return Self::convert_hashed_path(reconstructed_path, width);
     }
 
     /**
