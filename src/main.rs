@@ -14,14 +14,14 @@ mod graph;
 mod path_finder;
 
 fn main() {
-    let maze: Maze::Maze<Vertex<i32>, WeightedEdge<i32, Vertex<i32>>> = Maze::Maze::new(20, 50);
+    let maze: Maze::Maze<Vertex<i32>, WeightedEdge<i32, Vertex<i32>>> = Maze::Maze::new(10, 20);
 
     let path_finder = PathFinder::new(maze.get_maze());
     let maze_with_path = path_finder.show_path(path_finder.find_path(
         Point2D::new(1, 1),
-        Point2D::new(39, 99),
+        Point2D::new(19, 39),
         true,
-        path_finder::SearchAlgorithms::BFS,
+        path_finder::SearchAlgorithms::DFS,
     ));
 
     write!(std::io::stdout(), "{}", to_string(&maze_with_path, true)).unwrap();
@@ -36,7 +36,7 @@ fn main() {
 fn get_file(file_name: String) -> File {
     File::create(&file_name).unwrap();
 
-    let mut fi = fs::OpenOptions::new()
+    let fi = fs::OpenOptions::new()
         .write(true)
         .append(true)
         .open(&file_name)
