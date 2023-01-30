@@ -1,12 +1,13 @@
 use std::{
     collections::{HashMap, HashSet, VecDeque},
-    fmt::{Display, Debug},
+    fmt::{Debug, Display},
     hash::Hash,
 };
 
 use rand::Rng;
 
-use crate::graph::{Graph, IVertex, IWeightedEdge};
+use crate::{graph::{Graph, IVertex, IWeightedEdge}, path_finder::SearchAlgorithms};
+use crate::path_finder::PathFinder;
 
 pub struct Maze<V, E> {
     grid: Vec<Vec<MazeCell<i32>>>,
@@ -36,7 +37,8 @@ impl<T> Display for MazeCell<T> {
             CellType::UpDownBorder => format!("―+―"),
             CellType::LeftRightBorder => format!(" | "),
             CellType::Vertex => format!("   "),
-            CellType::None => format!("   ")
+            CellType::None => format!("   "),
+            CellType::Path => format!(" * ")
         };
 
         return write!(f, "{}", output);
@@ -48,13 +50,14 @@ pub enum CellType {
     Vertex,
     LeftRightBorder,
     UpDownBorder,
+    Path,
     None,
 }
 
 #[derive(Hash, Eq, PartialEq, Clone, Copy, Debug)]
 pub struct Point2D<T> {
-    x: T,
-    y: T,
+    pub x: T,
+    pub y: T,
 }
 
 impl<T> Point2D<T> {
@@ -134,7 +137,8 @@ where
             let grid_src = vertex_to_grid_map.get(&src).unwrap();
             let grid_dest = vertex_to_grid_map.get(&dest).unwrap();
 
-            let path = Self::find_path_on_grid(&extended_grid, *grid_src, *grid_dest);
+            let path =
+                PathFinder::new(extended_grid.clone()).find_path(*grid_src, *grid_dest, false, SearchAlgorithms::BFS);
 
             path.iter().for_each(|grid_pos| {
                 let cell_type = extended_grid[grid_pos.x][grid_pos.y].cell_type.clone();
@@ -155,96 +159,6 @@ where
 
     pub fn get_maze(&self) -> Vec<Vec<MazeCell<i32>>> {
         return self.grid.clone();
-    }
-
-    /**
-     * Finds path on the grid between src and dest.
-     *
-     * Returns Vec<Point2D<usize>> containing Point2D obejects represented for each (x,y) pair on the graph between src and dest.
-     */
-    fn find_path_on_grid(
-        grid: &Vec<Vec<MazeCell<i32>>>,
-        src: Point2D<usize>,
-        dest: Point2D<usize>,
-    ) -> Vec<Point2D<usize>> {
-        let width = grid[0].len();
-        let height = grid.len();
-
-        let mut paths: Vec<usize> = vec![0; width * height];
-        paths.iter_mut().enumerate().for_each(|(i, val)| *val = i);
-
-        let mut queue: VecDeque<usize> = VecDeque::new();
-        let mut visited: HashSet<usize> = HashSet::new();
-
-        queue.push_back(src.x * width + src.y);
-
-        while !queue.is_empty() {
-            let hashed_pos = queue.pop_front().unwrap();
-
-            let x = hashed_pos / width;
-            let y = hashed_pos % width;
-
-            if visited.contains(&hashed_pos) {
-                continue;
-            }
-
-            visited.insert(hashed_pos);
-
-            let directions: [i32; 8] = [-1, 0, 1, 0, 0, -1, 0, 1];
-
-            for i in (0..directions.len() - 1).step_by(2) {
-                let next_x = (directions[i] + x as i32) as usize;
-                let next_y = (directions[i + 1] + y as i32) as usize;
-
-                let hashed_next_pos = next_x * width + next_y;
-
-                if next_x >= height || next_y >= width || visited.contains(&hashed_next_pos) {
-                    continue;
-                }
-
-                queue.push_back(hashed_next_pos);
-                paths[hashed_next_pos] = hashed_pos;
-
-                if next_x == dest.x && next_y == dest.y {
-                    queue.clear();
-                    break;
-                }
-            }
-        }
-
-        let reconstructed_path =
-            Self::reconstruct_path(&paths, src.x * width + src.y, dest.x * width + dest.y);
-        let mut path: Vec<Point2D<usize>> = Vec::new();
-
-        reconstructed_path.iter().for_each(|pos| {
-            let x = pos / width;
-            let y = pos % height;
-
-            path.push(Point2D::new(x, y));
-        });
-
-        return path;
-    }
-
-    /**
-     * Reconstructs path from src to dest using paths vector.
-     *
-     * Returns Vec<usize> containing cells between src and dest.
-     */
-    fn reconstruct_path(paths: &Vec<usize>, src: usize, dest: usize) -> Vec<usize> {
-        let mut path: Vec<usize> = Vec::new();
-
-        let mut p = dest;
-
-        while p != src {
-            path.push(p);
-            p = paths[p];
-        }
-
-        path.push(p);
-        path.reverse();
-
-        return path;
     }
 
     /**
@@ -288,7 +202,7 @@ where
      * Returns Vec<Vec<String>>.
      */
     pub fn render_maze(&self) -> Vec<Vec<String>> {
-        let mut rendered_grid: Vec<Vec<String>> = 
+        let mut rendered_grid: Vec<Vec<String>> =
             vec![vec![String::new(); self.grid.len()]; self.grid.len()];
 
         self.grid.iter().enumerate().for_each(|(i, vector)| {
