@@ -1,16 +1,27 @@
 use std::{
     fs::{self, File},
-    io::Write
+    io::Write,
 };
 
 use graph::{Vertex, WeightedEdge};
 
+mod Maze;
 mod graph;
-mod maze;
+mod path_finder;
 
 fn main() {
-    let maze: maze::Maze<Vertex<i32>, WeightedEdge<i32, Vertex<i32>>> = maze::Maze::new(5);
+    let maze: Maze::Maze<Vertex<i32>, WeightedEdge<i32, Vertex<i32>>> = Maze::Maze::new(20);
+
     write_to_file("maze.txt".to_string(), &maze);
+
+    // maze.get_maze().iter().for_each(|vector| {
+    //     vector.iter().for_each(|val| {
+    //         print!("{}", val);
+    //     });
+
+    //     println!();
+    // });
+
 
     // write_grid_to_file("test.txt".to_string(), &maze.render_maze());
 }

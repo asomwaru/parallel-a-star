@@ -1,7 +1,7 @@
 use std::{
     collections::{HashMap, HashSet, VecDeque},
+    fmt::{Display, Debug},
     hash::Hash,
-    fmt::Display
 };
 
 use rand::Rng;
@@ -27,6 +27,19 @@ impl<T> MazeCell<T> {
             val: val,
             cell_type: cell_type,
         };
+    }
+}
+
+impl<T> Display for MazeCell<T> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let output = match self.cell_type {
+            CellType::UpDownBorder => format!("―+―"),
+            CellType::LeftRightBorder => format!(" | "),
+            CellType::Vertex => format!("   "),
+            CellType::None => format!("   ")
+        };
+
+        return write!(f, "{}", output);
     }
 }
 
@@ -69,6 +82,21 @@ where
         });
 
         return write!(f, "{}", output);
+    }
+}
+
+impl<V, E> Default for Maze<V, E>
+where
+    V: IVertex<i32>,
+    E: IWeightedEdge<i32, V>,
+{
+    fn default() -> Self {
+        Self {
+            grid: Vec::new(),
+            grid_graph: Graph::new(HashMap::new()),
+            vertex_to_grid_map: HashMap::new(),
+            mst: HashSet::new(),
+        }
     }
 }
 
@@ -260,33 +288,14 @@ where
      * Returns Vec<Vec<String>>.
      */
     pub fn render_maze(&self) -> Vec<Vec<String>> {
-        let mut rendered_grid: Vec<Vec<String>> =
+        let mut rendered_grid: Vec<Vec<String>> = 
             vec![vec![String::new(); self.grid.len()]; self.grid.len()];
 
-        for i in (0..rendered_grid.len()).step_by(1) {
-            for j in (0..rendered_grid[i].len()).step_by(1) {
-                let cell_type = self.grid[i][j].cell_type.clone();
-
-                match cell_type {
-                    CellType::UpDownBorder => rendered_grid[i][j] = format!("―+―"),
-                    CellType::LeftRightBorder => {
-                        if j == 0 {
-                            rendered_grid[i][j] = format!(" |");
-                        } else if j % 2 == 0 {
-                            rendered_grid[i][j] = format!("|");
-                        }
-                    }
-                    CellType::Vertex => rendered_grid[i][j] = format!("     "),
-                    CellType::None => {
-                        if i % 2 == 0 {
-                            rendered_grid[i][j] = format!("   ");
-                        } else {
-                            rendered_grid[i][j] = format!(" ");
-                        }
-                    }
-                }
-            }
-        }
+        self.grid.iter().enumerate().for_each(|(i, vector)| {
+            vector.iter().enumerate().for_each(|(j, cell)| {
+                rendered_grid[i][j] = format!("{}", cell);
+            });
+        });
 
         return rendered_grid;
     }
