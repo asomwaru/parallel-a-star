@@ -1,6 +1,14 @@
-use std::collections::{HashMap, HashSet, VecDeque};
+use std::{
+    cmp::Reverse,
+    collections::{HashSet, VecDeque},
+    time::Instant, f64::consts::SQRT_2,
+};
 
 use crate::Maze::{CellType, MazeCell, Point2D};
+
+use binary_heap_plus::BinaryHeap;
+
+use keyed_priority_queue::KeyedPriorityQueue;
 
 pub struct PathFinder<T: Clone> {
     maze_grid: Vec<Vec<MazeCell<T>>>,
@@ -22,6 +30,7 @@ pub enum SearchAlgorithms {
     BidirectionalBFS,
     DFS,
     Dijkstra,
+    AStar,
 }
 
 impl<T> PathFinder<T>
@@ -82,7 +91,117 @@ where
             }
             SearchAlgorithms::DFS => self.find_path_dfs(src, dest, consider_obstacles),
             SearchAlgorithms::Dijkstra => self.find_path_dijkstra(src, dest, consider_obstacles),
+            SearchAlgorithms::AStar => self.find_path_a_star(src, dest, consider_obstacles),
         };
+    }
+
+    fn manhattan_distance(src: Point2D<usize>, dest: Point2D<usize>) -> i32 {
+        return i32::abs((src.x - dest.x) as i32) + i32::abs((src.y - dest.y) as i32);
+    }
+
+    fn diagonal_distance(src: Point2D<usize>, dest: Point2D<usize>) -> i32 {
+        let dx = i32::abs((src.x - dest.x) as i32);
+        let dy = i32::abs((src.y - dest.y) as i32);
+        
+        return (dx + dy) + f64::floor((SQRT_2 - 2.0) * dx.min(dy) as f64) as i32;
+    }
+
+    fn euclidean_distance(src: Point2D<usize>, dest: Point2D<usize>) -> i32 {
+        let dx = i32::abs((src.x - dest.x) as i32);
+        let dy = i32::abs((src.y - dest.y) as i32);
+     
+        return f64::sqrt((dx.pow( 2) + dy.pow(2)) as f64) as i32;
+    }
+
+    /**
+     * Finds path on the grid between src and dest using  A*.
+     *
+     * Returns Vec<Point2D<usize>> containing Point2D obejects represented for each (x,y) pair on the graph between src and dest.
+     */
+    fn find_path_a_star(
+        &self,
+        src: Point2D<usize>,
+        dest: Point2D<usize>,
+        consider_obstacles: bool,
+    ) -> Vec<Point2D<usize>> {
+        let grid = self.maze_grid.clone();
+
+        let width = grid[0].len();
+        let height = grid.len();
+
+        let mut paths: Vec<usize> = vec![0; width * height];
+        paths.iter_mut().enumerate().for_each(|(i, val)| *val = i);
+
+        let mut visited: HashSet<usize> = HashSet::new();
+
+        let mut f_score = vec![i32::MAX; width * height];
+        let mut g_score = vec![i32::MAX; width * height];
+
+        f_score[src.x * width + src.y] = 0;
+        g_score[src.x * width + src.y] = 0;
+
+        let mut heap = BinaryHeap::new_by(|a: &(usize, i32), b: &(usize, i32)| b.1.cmp(&a.1));
+
+        heap.push((src.x * width + src.y, 0));
+
+        while !heap.is_empty() {
+            let hashed_tuple = heap.pop().unwrap();
+            let hashed_pos = hashed_tuple.0;
+
+            visited.insert(hashed_pos);
+
+            let x = hashed_pos / width;
+            let y = hashed_pos % width;
+
+            let directions: [i32; 8] = [-1, 0, 1, 0, 0, -1, 0, 1];
+
+            for i in (0..directions.len() - 1).step_by(2) {
+                let next_x = (directions[i] + x as i32) as usize;
+                let next_y = (directions[i + 1] + y as i32) as usize;
+
+                let hashed_next_pos = next_x * width + next_y;
+
+                if next_x >= height || next_y >= width || visited.contains(&hashed_next_pos) {
+                    continue;
+                }
+
+                let next_cell_type = grid[next_x][next_y].cell_type.clone();
+
+                let is_next_cell_border = next_cell_type == CellType::LeftRightBorder
+                    || next_cell_type == CellType::UpDownBorder;
+
+                if consider_obstacles && is_next_cell_border {
+                    continue;
+                }
+
+                let tentative_score = g_score[hashed_pos] + 1;
+
+                if tentative_score < g_score[hashed_next_pos] {
+                    g_score[hashed_next_pos] = tentative_score;
+
+                    let h_score = Self::manhattan_distance(
+                        Point2D::new(next_x, next_y),
+                        Point2D::new(dest.x, dest.y),
+                    );
+
+                    f_score[hashed_next_pos] = g_score[hashed_next_pos] + h_score;
+
+                    paths[hashed_next_pos] = hashed_pos;
+
+                    heap.push((hashed_next_pos, f_score[hashed_next_pos]));
+                }
+
+                if next_x == dest.x && next_y == dest.y {
+                    heap.clear();
+                    break;
+                }
+            }
+        }
+
+        let reconstructed_path =
+            Self::reconstruct_path(&paths, src.x * width + src.y, dest.x * width + dest.y);
+
+        return Self::convert_hashed_path(reconstructed_path, width);
     }
 
     /**
@@ -121,7 +240,7 @@ where
         let mut intersection_pos_hashed: i32 = -1;
 
         while !src_queue.is_empty() && !dest_queue.is_empty() {
-            Self::perform_bfs_queue_operation(
+            let src_vector = Self::perform_bfs_queue_operation(
                 &mut src_queue,
                 &grid,
                 &mut src_visited,
@@ -129,6 +248,7 @@ where
                 dest,
                 consider_obstacles,
             );
+
             Self::perform_bfs_queue_operation(
                 &mut dest_queue,
                 &grid,
@@ -139,7 +259,7 @@ where
             );
 
             if !src_queue.is_empty() && !dest_queue.is_empty() {
-                for val in src_visited.iter() {
+                for val in src_vector.iter() {
                     if dest_visited.contains(&val) {
                         intersection_pos_hashed = *val as i32;
 
@@ -151,43 +271,31 @@ where
             }
         }
 
-        let mut reconstructed_path = Vec::new();
+        let path_from_dest_to_intersection = Self::reconstruct_path(
+            &dest_paths,
+            dest.x * width + dest.y,
+            intersection_pos_hashed as usize,
+        );
+        let path_from_src_to_intersection = Self::reconstruct_path(
+            &src_paths,
+            src.x * width + src.y,
+            intersection_pos_hashed as usize,
+        );
 
-        if intersection_pos_hashed > 0 {
-            let path_from_dest_to_intersection = Self::reconstruct_path(
-                &dest_paths,
-                dest.x * width + dest.y,
-                intersection_pos_hashed as usize,
-            );
-            let path_from_src_to_intersection = Self::reconstruct_path(
-                &src_paths,
-                src.x * width + src.y,
-                intersection_pos_hashed as usize,
-            );
+        let mut reconstructed_path = Vec::with_capacity(
+            path_from_dest_to_intersection.len() + path_from_src_to_intersection.len(),
+        );
 
-            reconstructed_path.extend(path_from_src_to_intersection.iter());
-            reconstructed_path.extend(path_from_dest_to_intersection.iter());
-        } else {
-            if src_queue.is_empty() {
-                reconstructed_path = Self::reconstruct_path(
-                    &src_paths,
-                    src.x * width + src.y,
-                    dest.x * width + dest.y,
-                );
-            } else {
-                reconstructed_path = Self::reconstruct_path(
-                    &dest_paths,
-                    dest.x * width + dest.y,
-                    src.x * width + src.y,
-                );
-            }
-        }
+        reconstructed_path.extend(path_from_src_to_intersection.iter());
+        reconstructed_path.extend(path_from_dest_to_intersection.iter());
 
         return Self::convert_hashed_path(reconstructed_path, width);
     }
 
     /**
      * Performs a single BFS iteration on the given queue.
+     *
+     * Returns the Vec containing node's neighbours that were added to the queue.
      */
     fn perform_bfs_queue_operation(
         queue: &mut VecDeque<usize>,
@@ -196,7 +304,9 @@ where
         paths: &mut Vec<usize>,
         dest: Point2D<usize>,
         consider_obstacles: bool,
-    ) {
+    ) -> Vec<usize> {
+        let mut neighbours: Vec<usize> = Vec::new();
+
         let width = grid[0].len();
         let height = grid.len();
 
@@ -206,7 +316,7 @@ where
         let y = hashed_pos % width;
 
         if visited.contains(&hashed_pos) {
-            return;
+            return neighbours;
         }
 
         visited.insert(hashed_pos);
@@ -225,12 +335,14 @@ where
 
             let next_cell_type = grid[next_x][next_y].cell_type.clone();
 
-            let is_next_cell_border = (next_cell_type == CellType::LeftRightBorder
-                || next_cell_type == CellType::UpDownBorder);
+            let is_next_cell_border = next_cell_type == CellType::LeftRightBorder
+                || next_cell_type == CellType::UpDownBorder;
 
             if consider_obstacles && is_next_cell_border {
                 continue;
             }
+
+            neighbours.push(hashed_next_pos);
 
             queue.push_back(hashed_next_pos);
             paths[hashed_next_pos] = hashed_pos;
@@ -240,6 +352,8 @@ where
                 break;
             }
         }
+
+        return neighbours;
     }
 
     /**
@@ -261,26 +375,20 @@ where
         let mut paths: Vec<usize> = vec![0; width * height];
         paths.iter_mut().enumerate().for_each(|(i, val)| *val = i);
 
-        let mut visited: HashSet<usize> = HashSet::new();
-
-        let mut distances: Vec<usize> = vec![usize::MAX; width * height];
+        let mut distances: Vec<i32> = vec![i32::MAX; width * height];
         distances[src.x * width + src.y] = 0;
 
-        let mut counter = 0;
-        while counter < width * height - 1 {
-            let mut hashed_pos = 0;
-            let mut min = usize::MAX;
+        let mut priority_queue = KeyedPriorityQueue::<usize, Reverse<i32>>::new();
 
-            for pos in 0..(width * height) {
-                if !visited.contains(&pos) && min > distances[pos] {
-                    min = distances[pos];
-                    hashed_pos = pos;
-                }
-            }
+        distances.iter().enumerate().for_each(|(pos, distance)| {
+            priority_queue.push(pos, Reverse(*distance));
+        });
 
-            counter += 1;
+        while !priority_queue.is_empty() {
+            let tuple = priority_queue.pop().unwrap();
 
-            visited.insert(hashed_pos);
+            let hashed_pos = tuple.0;
+            let distance = tuple.1 .0;
 
             let x = hashed_pos / width;
             let y = hashed_pos % width;
@@ -293,7 +401,7 @@ where
 
                 let hashed_next_pos = next_x * width + next_y;
 
-                if next_x >= height || next_y >= width || visited.contains(&hashed_next_pos) {
+                if next_x >= height || next_y >= width {
                     continue;
                 }
 
@@ -306,15 +414,18 @@ where
                     continue;
                 }
 
-                let next_cell_distance = distances[hashed_pos] + 1;
+                let next_cell_distance = distance + 1;
 
-                if distances[hashed_next_pos] > next_cell_distance {
+                if next_cell_distance < distances[hashed_next_pos] {
                     distances[hashed_next_pos] = next_cell_distance;
                     paths[hashed_next_pos] = hashed_pos;
+                    priority_queue
+                        .set_priority(&hashed_next_pos, Reverse(distances[hashed_next_pos]))
+                        .unwrap();
                 }
 
                 if x == dest.x && y == dest.y {
-                    counter = width * height;
+                    priority_queue.clear();
                     break;
                 }
             }
