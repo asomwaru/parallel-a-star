@@ -2,8 +2,7 @@ use std::{
     fmt::Display,
     fs::{self, File},
     io::Write,
-    thread,
-    time::{Duration, Instant},
+    time::{Instant, Duration}, thread,
 };
 
 use colored::Colorize;
@@ -16,48 +15,59 @@ mod graph;
 mod path_finder;
 
 fn main() {
-    let maze: Maze::Maze<Vertex<i32>, WeightedEdge<i32, Vertex<i32>>> = Maze::Maze::new(300, 300);
-    let path_finder = PathFinder::new(maze.get_maze());
+    let maze_size: (usize, usize) = (50, 120);
+    
+    let start_pos = Point2D::new(1, 1);
+    let end_pos = Point2D::new(maze_size.0 * 2 - 1, maze_size.1 * 2 - 1);
 
     let start = Instant::now();
 
-    let mut _maze_with_path = path_finder.show_path(path_finder.find_path(
-        Point2D::new(1, 1),
-        Point2D::new(599, 599),
-        true,
-        path_finder::SearchAlgorithms::AStar,
-    ));
-    println!("A* Execution Time: {:?}", start.elapsed());
 
-    _maze_with_path = path_finder.show_path(path_finder.find_path(
-        Point2D::new(1, 1),
-        Point2D::new(599, 599),
-        true,
-        path_finder::SearchAlgorithms::BidirectionalBFS,
-    ));
-    println!("Bidirectional BFS Execution Time: {:?}", start.elapsed());
+    loop {
+        let maze: Maze::Maze<Vertex<i32>, WeightedEdge<i32, Vertex<i32>>> = Maze::Maze::new(maze_size.0, maze_size.1);
 
-    _maze_with_path = path_finder.show_path(path_finder.find_path(
-        Point2D::new(1, 1),
-        Point2D::new(599, 599),
-        true,
-        path_finder::SearchAlgorithms::DFS,
-    ));
-    println!("DFS Execution Time: {:?}", start.elapsed());
+        let path_finder = PathFinder::new(maze.get_maze());
+
+        let mut _maze_with_path = path_finder.show_path(path_finder.find_path(
+            start_pos,
+            end_pos,
+            true,
+            path_finder::SearchAlgorithms::AStar,
+        ));
+
+        write!(std::io::stdout(), "{}", to_string(&_maze_with_path, true)).unwrap();
+    }
+    
+    // println!("A* Execution Time: {:?}", start.elapsed());
+
+    // _maze_with_path = path_finder.show_path(path_finder.find_path(
+    //     start_pos,
+    //     end_pos,
+    //     true,
+    //     path_finder::SearchAlgorithms::BidirectionalBFS,
+    // ));
+    // println!("Bidirectional BFS Execution Time: {:?}", start.elapsed());
+
+    // _maze_with_path = path_finder.show_path(path_finder.find_path(
+    //     start_pos,
+    //     end_pos,
+    //     true,
+    //     path_finder::SearchAlgorithms::DFS,
+    // ));``
+    // println!("DFS Execution Time: {:?}", start.elapsed());
 
 
-    _maze_with_path = path_finder.show_path(path_finder.find_path(
-        Point2D::new(1, 1),
-        Point2D::new(599, 599),
-        true,
-        path_finder::SearchAlgorithms::BFS,
-    ));
-    println!("BFS Execution Time: {:?}", start.elapsed());
-
-    // write!(std::io::stdout(), "{}", to_string(&maze_with_path, true)).unwrap();
+    // _maze_with_path = path_finder.show_path(path_finder.find_path(
+    //     start_pos,
+    //     end_pos,
+    //     true,
+    //     path_finder::SearchAlgorithms::BFS,
+    // ));
+    // println!("BFS Execution Time: {:?}", start.elapsed());
 
 
-    // write!(get_file("maze_with_path.txt".to_string()), "{}", to_string(&maze_with_path, false)).unwrap();
+
+    // write!(get_file("maze_with_path.txt".to_string()), "{}", to_string(&_maze_with_path, false)).unwrap();
 }
 
 /**
