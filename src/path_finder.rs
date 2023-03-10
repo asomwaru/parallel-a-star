@@ -100,7 +100,7 @@ where
             SearchAlgorithms::Dijkstra => self.find_path_dijkstra(src, dest, consider_obstacles),
             SearchAlgorithms::AStar => self.find_path_a_star(src, dest, consider_obstacles),
             SearchAlgorithms::AStarParallelNaive => {
-                self.find_path_a_star_parallel_naive(src, dest, consider_obstacles, 4)
+                self.find_path_a_star_parallel_naive(src, dest, consider_obstacles, 2)
             }
         };
     }
@@ -260,7 +260,6 @@ where
 
         for thread in threads {
             path = thread.join().unwrap();
-            break;
         }
 
         let reconstructed_path = Self::reconstruct_path(
