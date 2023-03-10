@@ -1,12 +1,18 @@
 use std::{
-    cmp::Reverse,
+    cmp::{Ordering, Reverse},
     collections::{HashSet, VecDeque},
-    time::Instant, f64::consts::SQRT_2,
+    f64::consts::SQRT_2,
+    fmt::Display,
+    sync::{Arc, Mutex},
+    thread,
+    vec,
 };
 
-use crate::Maze::{CellType, MazeCell, Point2D};
+use crate::{
+    Maze::{CellType, MazeCell, Point2D},
+};
 
-use binary_heap_plus::BinaryHeap;
+use binary_heap_plus::{BinaryHeap, FnComparator};
 
 use keyed_priority_queue::KeyedPriorityQueue;
 
@@ -31,11 +37,12 @@ pub enum SearchAlgorithms {
     DFS,
     Dijkstra,
     AStar,
+    AStarParallelNaive,
 }
 
 impl<T> PathFinder<T>
 where
-    T: Clone,
+    T: Clone + Display + Send + 'static,
 {
     pub fn new(maze_grid: Vec<Vec<MazeCell<T>>>) -> PathFinder<T> {
         return PathFinder {
@@ -92,6 +99,9 @@ where
             SearchAlgorithms::DFS => self.find_path_dfs(src, dest, consider_obstacles),
             SearchAlgorithms::Dijkstra => self.find_path_dijkstra(src, dest, consider_obstacles),
             SearchAlgorithms::AStar => self.find_path_a_star(src, dest, consider_obstacles),
+            SearchAlgorithms::AStarParallelNaive => {
+                self.find_path_a_star_parallel_naive(src, dest, consider_obstacles, 4)
+            }
         };
     }
 
@@ -102,15 +112,167 @@ where
     fn diagonal_distance(src: Point2D<usize>, dest: Point2D<usize>) -> i32 {
         let dx = i32::abs((src.x - dest.x) as i32);
         let dy = i32::abs((src.y - dest.y) as i32);
-        
+
         return (dx + dy) + f64::floor((SQRT_2 - 2.0) * dx.min(dy) as f64) as i32;
     }
 
     fn euclidean_distance(src: Point2D<usize>, dest: Point2D<usize>) -> i32 {
         let dx = i32::abs((src.x - dest.x) as i32);
         let dy = i32::abs((src.y - dest.y) as i32);
-     
-        return f64::sqrt((dx.pow( 2) + dy.pow(2)) as f64) as i32;
+
+        return f64::sqrt((dx.pow(2) + dy.pow(2)) as f64) as i32;
+    }
+
+    fn a_star_parallel_thread_naive(
+        maze_grid: Vec<Vec<MazeCell<T>>>,
+        heap: Arc<
+            Mutex<
+                BinaryHeap<
+                    (usize, i32),
+                    FnComparator<fn(&(usize, i32), &(usize, i32)) -> Ordering>,
+                >,
+            >,
+        >,
+        src: Point2D<usize>,
+        dest: Point2D<usize>,
+        consider_obstacles: bool,
+    ) -> Vec<usize> {
+        let grid = maze_grid.clone();
+
+        let width = grid[0].len();
+        let height = grid.len();
+
+        let mut paths: Vec<usize> = vec![0; width * height];
+        paths.iter_mut().enumerate().for_each(|(i, val)| *val = i);
+
+        // The sum of g-score and h-score
+        let mut f_score = vec![i32::MAX; width * height];
+
+        // Absolute distance from starting node to current node
+        let mut g_score = vec![i32::MAX; width * height];
+
+        f_score[src.x * width + src.y] =
+            Self::manhattan_distance(Point2D::new(src.x, src.y), Point2D::new(dest.x, dest.y));
+
+        g_score[src.x * width + src.y] = 0;
+
+        {
+            heap.lock().unwrap().push((src.x * width + src.y, 0));
+        }
+
+        while !heap.lock().unwrap().is_empty() {
+            let hashed_tuple;
+
+            {
+                hashed_tuple = heap.lock().unwrap().pop().unwrap();
+            }
+
+            let hashed_pos = hashed_tuple.0;
+
+            let x = hashed_pos / width;
+            let y = hashed_pos % width;
+
+            let directions: [i32; 8] = [-1, 0, 1, 0, 0, -1, 0, 1];
+
+            for i in (0..directions.len() - 1).step_by(2) {
+                let next_x = (directions[i] + x as i32) as usize;
+                let next_y = (directions[i + 1] + y as i32) as usize;
+
+                let hashed_next_pos = next_x * width + next_y;
+
+                if next_x >= height || next_y >= width {
+                    continue;
+                }
+
+                let next_cell_type = grid[next_x][next_y].cell_type.clone();
+
+                let is_next_cell_border = next_cell_type == CellType::LeftRightBorder
+                    || next_cell_type == CellType::UpDownBorder;
+
+                if consider_obstacles && is_next_cell_border {
+                    continue;
+                }
+
+                let tentative_g_score = g_score[hashed_pos] + 1;
+
+                if tentative_g_score < g_score[hashed_next_pos] {
+                    let h_score = Self::manhattan_distance(
+                        Point2D::new(next_x, next_y),
+                        Point2D::new(dest.x, dest.y),
+                    );
+
+                    g_score[hashed_next_pos] = tentative_g_score;
+
+                    f_score[hashed_next_pos] = tentative_g_score + h_score;
+
+                    paths[hashed_next_pos] = hashed_pos;
+
+                    {
+                        heap.lock()
+                            .unwrap()
+                            .push((hashed_next_pos, f_score[hashed_next_pos]));
+                    }
+                }
+
+                if next_x == dest.x && next_y == dest.y {
+                    heap.lock().unwrap().clear();
+                    return paths;
+                }
+            }
+        }
+        return vec![];
+    }
+
+    /**
+     * This A* variant is working fine as long as you have an expensive heuristic function... If your heuristic calculation requires a small amount of time,
+     * there is a chance that you will have a high contention and, therefore, one thread might always stay idle.
+     */
+    fn find_path_a_star_parallel_naive(
+        &self,
+        src: Point2D<usize>,
+        dest: Point2D<usize>,
+        consider_obstacles: bool,
+        max_threds: u32,
+    ) -> Vec<Point2D<usize>> {
+        let heap: Arc<
+            Mutex<
+                BinaryHeap<
+                    (usize, i32),
+                    FnComparator<fn(&(usize, i32), &(usize, i32)) -> Ordering>,
+                >,
+            >,
+        > = Arc::new(Mutex::new(BinaryHeap::new_by(
+            |a: &(usize, i32), b: &(usize, i32)| b.1.cmp(&a.1),
+        )));
+
+        let mut threads = vec![];
+
+        for _ in 0..max_threds {
+            let heap_clone = heap.clone();
+            let maze_clone = self.maze_grid.clone();
+
+            threads.push(thread::spawn(move || {
+                Self::a_star_parallel_thread_naive(maze_clone, heap_clone, src, dest, consider_obstacles)
+            }))
+        }
+
+        let mut path = vec![];
+
+        for thread in threads {
+            path = thread.join().unwrap();
+            break;
+        }
+
+        let reconstructed_path = Self::reconstruct_path(
+            &path,
+            src.x * self.maze_grid.first().unwrap().len() + src.y,
+            dest.x * self.maze_grid.first().unwrap().len() + dest.y,
+        );
+
+        return Self::convert_hashed_path(
+            reconstructed_path,
+            self.maze_grid.first().unwrap().len(),
+        );
     }
 
     /**
@@ -134,10 +296,15 @@ where
 
         let mut visited: HashSet<usize> = HashSet::new();
 
+        // The sum of g-score and h-score
         let mut f_score = vec![i32::MAX; width * height];
+
+        // Absolute distance from starting node to current node
         let mut g_score = vec![i32::MAX; width * height];
 
-        f_score[src.x * width + src.y] = 0;
+        f_score[src.x * width + src.y] =
+            Self::manhattan_distance(Point2D::new(src.x, src.y), Point2D::new(dest.x, dest.y));
+
         g_score[src.x * width + src.y] = 0;
 
         let mut heap = BinaryHeap::new_by(|a: &(usize, i32), b: &(usize, i32)| b.1.cmp(&a.1));
@@ -161,7 +328,7 @@ where
 
                 let hashed_next_pos = next_x * width + next_y;
 
-                if next_x >= height || next_y >= width || visited.contains(&hashed_next_pos) {
+                if next_x >= height || next_y >= width {
                     continue;
                 }
 
@@ -174,17 +341,17 @@ where
                     continue;
                 }
 
-                let tentative_score = g_score[hashed_pos] + 1;
+                let tentative_g_score = g_score[hashed_pos] + 1;
 
-                if tentative_score < g_score[hashed_next_pos] {
-                    g_score[hashed_next_pos] = tentative_score;
-
+                if tentative_g_score < g_score[hashed_next_pos] {
                     let h_score = Self::manhattan_distance(
                         Point2D::new(next_x, next_y),
                         Point2D::new(dest.x, dest.y),
                     );
 
-                    f_score[hashed_next_pos] = g_score[hashed_next_pos] + h_score;
+                    g_score[hashed_next_pos] = tentative_g_score;
+
+                    f_score[hashed_next_pos] = tentative_g_score + h_score;
 
                     paths[hashed_next_pos] = hashed_pos;
 
