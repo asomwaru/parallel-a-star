@@ -26,6 +26,10 @@ There are several solution to that problem, and we are currently reading several
 ## Installation
 Simply use `cargo run --release` command to run the code in the "release" mod. Release mod provides optimizations and therefore, code runs faster.
 
+## Maze Example
+This is an example of generated maze and a path for source to destination.
+![](https://i.imgur.com/a46Z6VO.png)
+
 ## License
 
 [MIT](https://choosealicense.com/licenses/mit/)
