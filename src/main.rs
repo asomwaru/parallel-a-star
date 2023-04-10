@@ -1,9 +1,8 @@
 use std::{
+    io::Write,
     fmt::Display,
     fs::{self, File},
-    io::Write,
-    thread,
-    time::{Duration, Instant},
+    time::Instant,
 };
 
 use colored::Colorize;
@@ -16,47 +15,48 @@ mod graph;
 mod path_finder;
 
 fn main() {
-    let maze: Maze::Maze<Vertex<i32>, WeightedEdge<i32, Vertex<i32>>> = Maze::Maze::new(300, 300);
+    let maze: Maze::Maze<Vertex<usize>, WeightedEdge<usize, Vertex<usize>>> = Maze::Maze::new(100, 100);
     let path_finder = PathFinder::new(maze.get_maze());
 
-    let start = Instant::now();
+    let mut start = Instant::now();
 
-    let mut _maze_with_path = path_finder.show_path(path_finder.find_path(
+    let mut maze_with_path = path_finder.show_path(path_finder.find_path(
         Point2D::new(1, 1),
-        Point2D::new(599, 599),
+        Point2D::new(99, 99),
+        true,
+        path_finder::SearchAlgorithms::AStarParallelNeighbors,
+    ));
+    println!("Parallel A* Execution Time: {:?}", start.elapsed());
+
+    start = Instant::now();
+    maze_with_path = path_finder.show_path(path_finder.find_path(
+        Point2D::new(1, 1),
+        Point2D::new(99, 99),
         true,
         path_finder::SearchAlgorithms::AStar,
     ));
     println!("A* Execution Time: {:?}", start.elapsed());
 
-    _maze_with_path = path_finder.show_path(path_finder.find_path(
-        Point2D::new(1, 1),
-        Point2D::new(599, 599),
-        true,
-        path_finder::SearchAlgorithms::BidirectionalBFS,
-    ));
-    println!("Bidirectional BFS Execution Time: {:?}", start.elapsed());
-
-    _maze_with_path = path_finder.show_path(path_finder.find_path(
-        Point2D::new(1, 1),
-        Point2D::new(599, 599),
-        true,
-        path_finder::SearchAlgorithms::DFS,
-    ));
-    println!("DFS Execution Time: {:?}", start.elapsed());
+    // start = Instant::now();
+    // _maze_with_path = path_finder.show_path(path_finder.find_path(
+    //     Point2D::new(1, 1),
+    //     Point2D::new(599, 599),
+    //     true,
+    //     path_finder::SearchAlgorithms::DFS,
+    // ));
+    // println!("DFS Execution Time: {:?}", start.elapsed());
 
 
-    _maze_with_path = path_finder.show_path(path_finder.find_path(
-        Point2D::new(1, 1),
-        Point2D::new(599, 599),
-        true,
-        path_finder::SearchAlgorithms::BFS,
-    ));
-    println!("BFS Execution Time: {:?}", start.elapsed());
+    // start = Instant::now();
+    // _maze_with_path = path_finder.show_path(path_finder.find_path(
+    //     Point2D::new(1, 1),
+    //     Point2D::new(599, 599),
+    //     true,
+    //     path_finder::SearchAlgorithms::BFS,
+    // ));
+    // println!("BFS Execution Time: {:?}", start.elapsed());
 
     // write!(std::io::stdout(), "{}", to_string(&maze_with_path, true)).unwrap();
-
-
     // write!(get_file("maze_with_path.txt".to_string()), "{}", to_string(&maze_with_path, false)).unwrap();
 }
 
@@ -83,7 +83,7 @@ fn get_file(file_name: String) -> File {
  *
  * Returns String.
  */
-fn to_string<T: Display>(grid: &Vec<Vec<MazeCell<T>>>, colored: bool) -> String {
+fn to_string(grid: &Vec<Vec<MazeCell>>, colored: bool) -> String {
     let mut output = String::with_capacity(grid.len() * grid[0].len());
 
     grid.iter().for_each(|vector| {

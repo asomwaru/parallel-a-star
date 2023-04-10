@@ -1,7 +1,7 @@
 use std::{
     collections::{HashMap, HashSet, VecDeque},
     fmt::{Debug, Display},
-    hash::Hash,
+    hash::Hash
 };
 
 use rand::Rng;
@@ -13,20 +13,18 @@ use crate::{
 };
 
 pub struct Maze<V, E> {
-    grid: Vec<Vec<MazeCell<i32>>>,
-    graph: Graph<V, E>,
-    vertex_to_grid_map: HashMap<V, Point2D<usize>>,
-    mst: HashSet<E>,
+    grid: Vec<Vec<MazeCell>>,
+    original_grid_graph: Graph<V, E>,
 }
 
 #[derive(Clone, Debug)]
-pub struct MazeCell<T> {
-    pub val: T,
+pub struct MazeCell {
+    pub val: usize,
     pub cell_type: CellType,
 }
 
-impl<T> MazeCell<T> {
-    pub fn new(val: T, cell_type: CellType) -> Self {
+impl MazeCell {
+    pub fn new(val: usize, cell_type: CellType) -> Self {
         return MazeCell {
             val: val,
             cell_type: cell_type,
@@ -34,21 +32,26 @@ impl<T> MazeCell<T> {
     }
 }
 
-impl<T> Display for MazeCell<T>
-where
-    T: Display,
-{
+impl Display for MazeCell {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let output = match self.cell_type {
-            CellType::UpDownBorder => format!("{}", "―+―"),
-            CellType::LeftRightBorder => format!(" {} ", "|"),
-            CellType::Vertex => format!("   ",),
-            CellType::None => format!("   "),
-            CellType::Path => format!(" {} ", "*"),
-            CellType::Start => format!(" {} ", "o"),
-            CellType::End => format!(" {} ", "x"),
+            CellType::UpDownBorder => format!("{}", "+"),
+            CellType::LeftRightBorder => format!("{}", "|"),
+            CellType::Vertex => format!(" ",),
+            CellType::None => format!(" "),
+            CellType::Path => format!("{}", "*"),
+            CellType::Start => format!("{}", "o"),
+            CellType::End => format!("{}", "x"),
         };
 
+
+        // CellType::UpDownBorder => format!("{}", "―+―"),
+        // CellType::LeftRightBorder => format!(" {} ", "|"),
+        // CellType::Vertex => format!("   ",),
+        // CellType::None => format!("   "),
+        // CellType::Path => format!(" {} ", "*"),
+        // CellType::Start => format!(" {} ", "o"),
+        // CellType::End => format!(" {} ", "x"),
         return write!(f, "{}", output);
     }
 }
@@ -87,8 +90,8 @@ where
 
 impl<V, E> Display for Maze<V, E>
 where
-    V: IVertex<i32>,
-    E: IWeightedEdge<i32, V>,
+    V: IVertex<usize>,
+    E: IWeightedEdge<usize, V>,
 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let rendered_maze = self.render_maze();
@@ -109,23 +112,21 @@ where
 
 impl<V, E> Default for Maze<V, E>
 where
-    V: IVertex<i32>,
-    E: IWeightedEdge<i32, V>,
+    V: IVertex<usize>,
+    E: IWeightedEdge<usize, V>,
 {
     fn default() -> Self {
         Self {
             grid: Vec::new(),
-            graph: Graph::new(HashMap::new()),
-            vertex_to_grid_map: HashMap::new(),
-            mst: HashSet::new(),
+            original_grid_graph: Graph::new(HashMap::new())
         }
     }
 }
 
 impl<V, E> Maze<V, E>
 where
-    V: IVertex<i32>,
-    E: IWeightedEdge<i32, V>,
+    V: IVertex<usize>,
+    E: IWeightedEdge<usize, V>,
 {
     /**
      * Generates maze from the given size.
@@ -135,8 +136,8 @@ where
     pub fn new(height: usize, width: usize) -> Self {
         let grid = Self::init_grid(height, width);
 
-        let mut grid_graph: Graph<V, E> = Self::init_graph(&grid, Point2D::new(0, 0));
-        let mst = grid_graph.find_mst(crate::graph::MSTAlgorithms::Kruskal);
+        let mut original_grid_graph: Graph<V, E> = Self::init_graph(&grid, Point2D::new(0, 0));
+        let mst = original_grid_graph.find_mst(crate::graph::MSTAlgorithms::Kruskal);
 
         let mut extended_grid = Self::extend_grid(&grid);
 
@@ -173,15 +174,19 @@ where
             });
         });
 
+        for i in 0..extended_grid.len() {
+            for j in 0..extended_grid[i].len() {
+                extended_grid[i][j].val = i * extended_grid[i].len() + j;
+            }
+        }
+
         return Maze {
             grid: extended_grid,
-            graph: grid_graph,
-            vertex_to_grid_map: vertex_to_grid_map,
-            mst: mst,
+            original_grid_graph,
         };
     }
 
-    pub fn get_maze(&self) -> Vec<Vec<MazeCell<i32>>> {
+    pub fn get_maze(&self) -> Vec<Vec<MazeCell>> {
         return self.grid.clone();
     }
 
@@ -191,12 +196,12 @@ where
      *
      * Returns Vec<Vec<MazeCell<i32>>>.
      */
-    fn extend_grid(grid: &Vec<Vec<i32>>) -> Vec<Vec<MazeCell<i32>>> {
+    fn extend_grid(grid: &Vec<Vec<usize>>) -> Vec<Vec<MazeCell>> {
         let height = grid.len();
         let width = grid[0].len();
 
         let mut extended_grid =
-            vec![vec![MazeCell::new(-1, CellType::None); width * 2 + 1]; height * 2 + 1];
+            vec![vec![MazeCell::new(0, CellType::None); width * 2 + 1]; height * 2 + 1];
 
         extended_grid
             .iter_mut()
@@ -246,7 +251,7 @@ where
      *
      * Returns Graph<V, E>.
      */
-    fn init_graph(grid: &Vec<Vec<i32>>, start_pos: Point2D<usize>) -> Graph<V, E> {
+    fn init_graph(grid: &Vec<Vec<usize>>, start_pos: Point2D<usize>) -> Graph<V, E> {
         let height = grid.len();
         let width = grid[0].len();
 
@@ -282,9 +287,13 @@ where
                 let next_x = (directions[i] + x as i32) as usize;
                 let next_y = (directions[i + 1] + y as i32) as usize;
 
+                if next_x >= height || next_y >= width {
+                    continue;
+                }
+
                 let hashed_next_pos = next_x * width + next_y;
 
-                if next_x >= height || next_y >= width || visited.contains(&hashed_next_pos) {
+                if visited.contains(&hashed_next_pos) {
                     continue;
                 }
 
@@ -296,19 +305,19 @@ where
                     adj_map.insert(V::new(grid_next_pos), HashSet::new());
                 }
 
-                let weight = rand::thread_rng().gen_range(1..(width * height)) as i32;
+                let weight = rand::thread_rng().gen_range(1..(width * height));
 
                 adj_map
                     .get_mut(&V::new(grid_next_pos))
                     .unwrap()
-                    .insert(<E as IWeightedEdge<i32, V>>::new(
+                    .insert(<E as IWeightedEdge<usize, V>>::new(
                         V::new(grid_next_pos),
                         V::new(grid_pos),
                         weight,
                     ));
 
                 adj_map.get_mut(&V::new(grid_pos)).unwrap().insert(
-                    <E as IWeightedEdge<i32, V>>::new(
+                    <E as IWeightedEdge<usize, V>>::new(
                         V::new(grid_pos),
                         V::new(grid_next_pos),
                         weight,
@@ -326,7 +335,7 @@ where
      *
      * Returns a Vec<Vec<i32>> representation of the grid.
      */
-    fn init_grid(height: usize, width: usize) -> Vec<Vec<i32>> {
+    fn init_grid(height: usize, width: usize) -> Vec<Vec<usize>> {
         let mut grid = vec![vec![0; width]; height];
 
         let mut counter = 0;

@@ -21,7 +21,7 @@ pub struct WeightedEdge<T, V> {
 impl<T, V> Ord for WeightedEdge<T, V>
 where
     T: Hash + Ord + Copy,
-    V: IVertex<i32>,
+    V: IVertex<usize>,
 {
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
         if self.weight > other.weight {
@@ -37,7 +37,7 @@ where
 impl<T, V> IWeightedEdge<T, V> for WeightedEdge<T, V>
 where
     T: Hash + Ord + Copy + Debug,
-    V: IVertex<i32>,
+    V: IVertex<usize>,
 {
     fn new(src: V, dest: V, weight: T) -> Self
     where
@@ -126,8 +126,8 @@ pub struct Graph<V, E> {
 
 impl<V, E> Graph<V, E>
 where
-    V: IVertex<i32>,
-    E: IWeightedEdge<i32, V>,
+    V: IVertex<usize>,
+    E: IWeightedEdge<usize, V>,
 {
     /**
      * Initializes a Graph object.

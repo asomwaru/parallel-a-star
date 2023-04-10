@@ -1,23 +1,28 @@
+use crate::Maze::{self, CellType, MazeCell, Point2D};
+extern crate rayon;
 use std::{
     cmp::Reverse,
     collections::{HashSet, VecDeque},
-    time::Instant, f64::consts::SQRT_2,
+    f64::consts::SQRT_2,
+    fmt::Display,
+    sync::{Arc, Mutex},
+    thread,
 };
-
-use crate::Maze::{CellType, MazeCell, Point2D};
 
 use binary_heap_plus::BinaryHeap;
 
+use crossbeam::channel;
 use keyed_priority_queue::KeyedPriorityQueue;
+use parking_lot::RwLock;
+use rayon::prelude::{
+    IndexedParallelIterator, IntoParallelIterator, IntoParallelRefIterator, ParallelIterator,
+};
 
-pub struct PathFinder<T: Clone> {
-    maze_grid: Vec<Vec<MazeCell<T>>>,
+pub struct PathFinder {
+    maze_grid: Vec<Vec<MazeCell>>,
 }
 
-impl<T> Default for PathFinder<T>
-where
-    T: Clone,
-{
+impl Default for PathFinder {
     fn default() -> Self {
         Self {
             maze_grid: Default::default(),
@@ -31,20 +36,37 @@ pub enum SearchAlgorithms {
     DFS,
     Dijkstra,
     AStar,
+    AStarParallelNeighbors,
 }
 
-impl<T> PathFinder<T>
-where
-    T: Clone,
-{
-    pub fn new(maze_grid: Vec<Vec<MazeCell<T>>>) -> PathFinder<T> {
+struct QuadTree {
+    children: [Option<Box<QuadTree>>; 4],
+    cells: Vec<MazeCell>,
+    bounds: Bounds<usize>,
+}
+
+impl Display for QuadTree {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        return write!(f, "Node: \n Children {:?}", self.cells);
+    }
+}
+
+struct Bounds<T> {
+    x: T,
+    y: T,
+    width: T,
+    height: T,
+}
+
+impl PathFinder {
+    pub fn new(maze_grid: Vec<Vec<MazeCell>>) -> PathFinder {
         return PathFinder {
             maze_grid: maze_grid,
         };
     }
 
-    pub fn show_path(&self, path: Vec<Point2D<usize>>) -> Vec<Vec<MazeCell<T>>> {
-        let mut maze_with_path: Vec<Vec<MazeCell<T>>> = self.maze_grid.clone();
+    pub fn show_path(&self, path: Vec<Point2D<usize>>) -> Vec<Vec<MazeCell>> {
+        let mut maze_with_path: Vec<Vec<MazeCell>> = self.maze_grid.clone();
 
         let src = path.first().unwrap();
         let dest = path.last().unwrap();
@@ -91,26 +113,153 @@ where
             }
             SearchAlgorithms::DFS => self.find_path_dfs(src, dest, consider_obstacles),
             SearchAlgorithms::Dijkstra => self.find_path_dijkstra(src, dest, consider_obstacles),
-            SearchAlgorithms::AStar => self.find_path_a_star(src, dest, consider_obstacles),
+            SearchAlgorithms::AStar => {
+                Self::find_path_a_star(self.maze_grid.clone(), src, dest, consider_obstacles)
+            }
+            SearchAlgorithms::AStarParallelNeighbors => Self::find_path_a_star_parallel_neighbors(
+                self.maze_grid.clone(),
+                src,
+                dest,
+                consider_obstacles,
+            ),
         };
     }
 
+    // Define a function to run the A* algorithm in parallel
+    fn find_path_a_star_parallel_neighbors(
+        maze_grid: Vec<Vec<MazeCell>>,
+        src: Point2D<usize>,
+        dest: Point2D<usize>,
+        consider_obstacles: bool,
+    ) -> Vec<Point2D<usize>> {
+        let width = maze_grid[0].len();
+        let height = maze_grid.len();
+
+        let mut paths: Vec<usize> = vec![0; width * height];
+        paths.iter_mut().enumerate().for_each(|(i, val)| *val = i);
+
+        let mut visited: HashSet<usize> = HashSet::new();
+
+        let mut f_score = vec![i32::MAX; width * height];
+        let g_score = Arc::new(RwLock::new(vec![i32::MAX; width * height]));
+
+        f_score[src.x * width + src.y] = 0;
+        
+        {
+            let mut g_score_write = g_score.write();
+            g_score_write[src.x * width + src.y] = 0;
+        }
+        
+        let mut heap = BinaryHeap::new_by(|a: &(usize, i32), b: &(usize, i32)| b.1.cmp(&a.1));
+
+        heap.push((src.x * width + src.y, 0));
+
+        while !heap.is_empty() {
+            let hashed_tuple = heap.pop().unwrap();
+            let hashed_pos = hashed_tuple.0;
+
+            visited.insert(hashed_pos);
+
+            let x = hashed_pos / width;
+            let y = hashed_pos % width;
+
+            let directions: [i32; 8] = [-1, 0, 1, 0, 0, -1, 0, 1];
+
+            let neighbors: Vec<(usize, usize)> = (0..directions.len() - 1)
+                .step_by(2)
+                .filter_map(|i| {
+                    let next_x = (directions[i] + x as i32) as usize;
+                    let next_y = (directions[i + 1] + y as i32) as usize;
+
+                    let hashed_next_pos = next_x * width + next_y;
+
+                    if next_x >= height || next_y >= width || visited.contains(&hashed_next_pos) {
+                        None
+                    } else {
+                        Some((next_x, next_y))
+                    }
+                })
+                .collect();
+
+            let (tx, rx) = channel::unbounded();
+
+            crossbeam::scope(|scope| {
+                for (next_x, next_y) in neighbors {
+                    let tx = tx.clone();
+                    
+                    let g_score = g_score.clone();
+                    let maze_grid = maze_grid.clone();
+
+                    scope.spawn(move |_| {
+                        let hashed_next_pos = next_x * width + next_y;
+
+                        let next_cell_type = maze_grid[next_x][next_y].cell_type.clone();
+
+                        let is_next_cell_border = next_cell_type == CellType::LeftRightBorder
+                            || next_cell_type == CellType::UpDownBorder;
+
+                        if consider_obstacles && is_next_cell_border {
+                            return;
+                        }
+
+                        let tentative_score = g_score.read().get(hashed_pos).unwrap() + 1;
+
+                        if tentative_score < *g_score.read().get(hashed_next_pos).unwrap() {
+                            let h_score = Self::manhattan_distance(
+                                Point2D::new(next_x, next_y),
+                                Point2D::new(dest.x, dest.y),
+                            );
+
+                            let f_score_next = tentative_score + h_score;
+
+                            tx.send((hashed_next_pos, tentative_score, f_score_next))
+                                .unwrap();
+                        }
+                    });
+                }
+                drop(tx); // Drop the transmitter to avoid deadlocks
+            })
+            .unwrap();
+
+            for (hashed_next_pos, tentative_score, f_score_next) in rx {
+                let mut g_score_write = g_score.write();
+                if tentative_score < g_score_write[hashed_next_pos] {
+                    g_score_write[hashed_next_pos] = tentative_score;
+                    f_score[hashed_next_pos] = f_score_next;
+                    paths[hashed_next_pos] = hashed_pos;
+                    heap.push((hashed_next_pos,  f_score_next));
+                }
+
+                if hashed_next_pos == dest.x * width + dest.y {
+                    heap.clear();
+                    break;
+                }
+            }
+        }
+
+        let reconstructed_path =
+            Self::reconstruct_path(&paths, src.x * width + src.y, dest.x * width + dest.y);
+
+        return Self::convert_hashed_path(reconstructed_path, width);
+    }
+
     fn manhattan_distance(src: Point2D<usize>, dest: Point2D<usize>) -> i32 {
-        return i32::abs((src.x - dest.x) as i32) + i32::abs((src.y - dest.y) as i32);
+        return i32::abs((src.x as i32 - dest.x as i32) as i32)
+            + i32::abs((src.y as i32 - dest.y as i32) as i32);
     }
 
     fn diagonal_distance(src: Point2D<usize>, dest: Point2D<usize>) -> i32 {
         let dx = i32::abs((src.x - dest.x) as i32);
         let dy = i32::abs((src.y - dest.y) as i32);
-        
+
         return (dx + dy) + f64::floor((SQRT_2 - 2.0) * dx.min(dy) as f64) as i32;
     }
 
     fn euclidean_distance(src: Point2D<usize>, dest: Point2D<usize>) -> i32 {
         let dx = i32::abs((src.x - dest.x) as i32);
         let dy = i32::abs((src.y - dest.y) as i32);
-     
-        return f64::sqrt((dx.pow( 2) + dy.pow(2)) as f64) as i32;
+
+        return f64::sqrt((dx.pow(2) + dy.pow(2)) as f64) as i32;
     }
 
     /**
@@ -119,15 +268,13 @@ where
      * Returns Vec<Point2D<usize>> containing Point2D obejects represented for each (x,y) pair on the graph between src and dest.
      */
     fn find_path_a_star(
-        &self,
+        maze_grid: Vec<Vec<MazeCell>>,
         src: Point2D<usize>,
         dest: Point2D<usize>,
         consider_obstacles: bool,
     ) -> Vec<Point2D<usize>> {
-        let grid = self.maze_grid.clone();
-
-        let width = grid[0].len();
-        let height = grid.len();
+        let width = maze_grid[0].len();
+        let height = maze_grid.len();
 
         let mut paths: Vec<usize> = vec![0; width * height];
         paths.iter_mut().enumerate().for_each(|(i, val)| *val = i);
@@ -165,7 +312,7 @@ where
                     continue;
                 }
 
-                let next_cell_type = grid[next_x][next_y].cell_type.clone();
+                let next_cell_type = maze_grid[next_x][next_y].cell_type.clone();
 
                 let is_next_cell_border = next_cell_type == CellType::LeftRightBorder
                     || next_cell_type == CellType::UpDownBorder;
@@ -299,7 +446,7 @@ where
      */
     fn perform_bfs_queue_operation(
         queue: &mut VecDeque<usize>,
-        grid: &Vec<Vec<MazeCell<T>>>,
+        grid: &Vec<Vec<MazeCell>>,
         visited: &mut HashSet<usize>,
         paths: &mut Vec<usize>,
         dest: Point2D<usize>,

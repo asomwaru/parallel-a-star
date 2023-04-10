@@ -1,5 +1,5 @@
 [package]
-name = "A-start-algorithm"
+name = "A_star_algorithm"
 version = "0.1.0"
 edition = "2021"
 
@@ -8,5 +8,8 @@ edition = "2021"
 [dependencies]
 binary-heap-plus = "0.5.0"
 colored = "2.0.0"
+crossbeam = "0.8.2"
 keyed_priority_queue = "0.4.1"
+parking_lot = "0.12.1"
 rand = "0.8.5"
+rayon = "1.7.0"
