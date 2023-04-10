@@ -67,7 +67,7 @@ pub enum CellType {
     None,
 }
 
-#[derive(Hash, Eq, PartialEq, Clone, Copy, Debug)]
+#[derive(Hash, Eq, PartialEq, Clone, Copy, Debug, PartialOrd, Ord)]
 pub struct Point2D<T> {
     pub x: T,
     pub y: T,

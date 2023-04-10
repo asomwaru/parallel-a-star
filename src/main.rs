@@ -26,6 +26,15 @@ fn main() {
         true,
         path_finder::SearchAlgorithms::AStarParallelNeighbors,
     ));
+    println!("Parallel Neighbors A* Execution Time: {:?}", start.elapsed());
+
+    start = Instant::now();
+    maze_with_path = path_finder.show_path(path_finder.find_path(
+        Point2D::new(1, 1),
+        Point2D::new(99, 99),
+        true,
+        path_finder::SearchAlgorithms::AStarParallelIterativeDeepening,
+    ));
     println!("Parallel A* Execution Time: {:?}", start.elapsed());
 
     start = Instant::now();

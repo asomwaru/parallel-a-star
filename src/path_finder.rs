@@ -1,22 +1,18 @@
-use crate::Maze::{self, CellType, MazeCell, Point2D};
+use crate::Maze::{CellType, MazeCell, Point2D};
 extern crate rayon;
 use std::{
     cmp::Reverse,
     collections::{HashSet, VecDeque},
-    f64::consts::SQRT_2,
-    fmt::Display,
-    sync::{Arc, Mutex},
-    thread,
+    f64::consts::SQRT_2, sync::Arc,
 };
+
 
 use binary_heap_plus::BinaryHeap;
 
 use crossbeam::channel;
 use keyed_priority_queue::KeyedPriorityQueue;
 use parking_lot::RwLock;
-use rayon::prelude::{
-    IndexedParallelIterator, IntoParallelIterator, IntoParallelRefIterator, ParallelIterator,
-};
+use rayon::{slice::ParallelSlice, prelude::ParallelIterator};
 
 pub struct PathFinder {
     maze_grid: Vec<Vec<MazeCell>>,
@@ -37,25 +33,28 @@ pub enum SearchAlgorithms {
     Dijkstra,
     AStar,
     AStarParallelNeighbors,
+    AStarParallelIterativeDeepening
 }
 
-struct QuadTree {
-    children: [Option<Box<QuadTree>>; 4],
-    cells: Vec<MazeCell>,
-    bounds: Bounds<usize>,
+
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+enum SearchResult {
+    Found,
+    NotFound(i32),
+    Infinity,
 }
 
-impl Display for QuadTree {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        return write!(f, "Node: \n Children {:?}", self.cells);
+impl SearchResult {
+    fn min(self, other: SearchResult) -> SearchResult {
+        use SearchResult::*;
+
+        match (self, other) {
+            (NotFound(a), NotFound(b)) => NotFound(a.min(b)),
+            (NotFound(_), Infinity) => self,
+            (Infinity, NotFound(_)) => other,
+            _ => Found,
+        }
     }
-}
-
-struct Bounds<T> {
-    x: T,
-    y: T,
-    width: T,
-    height: T,
 }
 
 impl PathFinder {
@@ -115,14 +114,146 @@ impl PathFinder {
             SearchAlgorithms::Dijkstra => self.find_path_dijkstra(src, dest, consider_obstacles),
             SearchAlgorithms::AStar => {
                 Self::find_path_a_star(self.maze_grid.clone(), src, dest, consider_obstacles)
-            }
+            },
             SearchAlgorithms::AStarParallelNeighbors => Self::find_path_a_star_parallel_neighbors(
                 self.maze_grid.clone(),
                 src,
                 dest,
                 consider_obstacles,
             ),
+            SearchAlgorithms::AStarParallelIterativeDeepening => Self::find_path_a_star_parallel_iterative_deepening(self.maze_grid.clone(), src, dest, consider_obstacles)
         };
+    }     
+    
+    fn find_path_a_star_parallel_iterative_deepening(
+        maze_grid: Vec<Vec<MazeCell>>,
+        src: Point2D<usize>,
+        dest: Point2D<usize>,
+        consider_obstacles: bool
+    ) -> Vec<Point2D<usize>> {
+        let mut depth_limit = Self::manhattan_distance(src, dest);
+    
+        loop {
+            let mut path = vec![src];
+            let result = Self::depth_limited_search(maze_grid.clone(), &mut path, src, dest, 0, depth_limit, consider_obstacles);
+    
+            match result {
+                SearchResult::Found => return path,
+                SearchResult::NotFound(limit) => depth_limit = limit,
+                SearchResult::Infinity => return vec![],
+            }
+        }
+    }
+
+    fn depth_limited_search(
+        maze_grid: Vec<Vec<MazeCell>>,
+        path: &mut Vec<Point2D<usize>>,
+        current: Point2D<usize>,
+        dest: Point2D<usize>,
+        g: i32,
+        depth_limit: i32,
+        consider_obstacles: bool,
+    ) -> SearchResult {
+        let f = g + Self::manhattan_distance(current, dest);
+    
+        if f > depth_limit {
+            return SearchResult::NotFound(f);
+        }
+    
+        if current == dest {
+            return SearchResult::Found;
+        }
+    
+        let mut min = SearchResult::Infinity;
+        let width = maze_grid[0].len();
+        let height = maze_grid.len();
+        let directions: [i32; 8] = [-1, 0, 1, 0, 0, -1, 0, 1];
+    
+        for i in (0..directions.len() - 1).step_by(2) {
+            let next_x = (directions[i] + current.x as i32) as usize;
+            let next_y = (directions[i + 1] + current.y as i32) as usize;
+    
+            if next_x >= height || next_y >= width {
+                continue;
+            }
+    
+            let next_cell_type = &maze_grid[next_x][next_y].cell_type;
+            let is_next_cell_border = *next_cell_type == CellType::LeftRightBorder
+                || *next_cell_type == CellType::UpDownBorder;
+    
+            if consider_obstacles && is_next_cell_border {
+                continue;
+            }
+    
+            let next = Point2D { x: next_x, y: next_y };
+    
+            if path.contains(&next) {
+                continue;
+            }
+    
+            path.push(next);
+    
+            let result = Self::depth_limited_search(maze_grid.clone(), path, next, dest, g + 1, depth_limit, consider_obstacles);
+    
+            if let SearchResult::Found = result {
+                return SearchResult::Found;
+            }
+    
+            if let SearchResult::NotFound(limit) = result {
+                min = SearchResult::min(min, SearchResult::NotFound(limit));
+            }
+    
+            path.pop();
+        }
+    
+        min
+    }
+    fn depth_limited_search_parallel(
+        maze_grid: Vec<Vec<MazeCell>>,
+        current: Point2D<usize>,
+        dest: Point2D<usize>,
+        g: i32,
+        depth_limit: i32,
+        consider_obstacles: bool,
+    ) -> SearchResult {
+        if g == depth_limit {
+            return SearchResult::NotFound(Self::manhattan_distance(current, dest) + g);
+        }
+    
+        let width = maze_grid[0].len();
+        let height = maze_grid.len();
+        let directions: [i32; 8] = [-1, 0, 1, 0, 0, -1, 0, 1];
+        let mut min = SearchResult::Infinity;
+    
+        let results: Vec<Option<SearchResult>> = directions.par_chunks(2).map(|dir| {
+            let next_x = (dir[0] + current.x as i32) as usize;
+            let next_y = (dir[1] + current.y as i32) as usize;
+    
+            if next_x >= height || next_y >= width {
+                return None;
+            }
+    
+            let next_cell_type = &maze_grid[next_x][next_y].cell_type;
+            let is_next_cell_border = *next_cell_type == CellType::LeftRightBorder
+                || *next_cell_type == CellType::UpDownBorder;
+    
+            if consider_obstacles && is_next_cell_border {
+                return None;
+            }
+    
+            let next = Point2D { x: next_x, y: next_y };
+    
+            let mut path = vec![current, next];
+            Some(Self::depth_limited_search(maze_grid.to_vec(), &mut path, next, dest, g + 1, depth_limit, consider_obstacles))
+        }).collect();
+    
+        for result in results {
+            if let Some(res) = result {
+                min = SearchResult::min(min, res);
+            }
+        }
+    
+        min
     }
 
     // Define a function to run the A* algorithm in parallel
@@ -144,12 +275,12 @@ impl PathFinder {
         let g_score = Arc::new(RwLock::new(vec![i32::MAX; width * height]));
 
         f_score[src.x * width + src.y] = 0;
-        
+
         {
             let mut g_score_write = g_score.write();
             g_score_write[src.x * width + src.y] = 0;
         }
-        
+
         let mut heap = BinaryHeap::new_by(|a: &(usize, i32), b: &(usize, i32)| b.1.cmp(&a.1));
 
         heap.push((src.x * width + src.y, 0));
@@ -186,7 +317,7 @@ impl PathFinder {
             crossbeam::scope(|scope| {
                 for (next_x, next_y) in neighbors {
                     let tx = tx.clone();
-                    
+
                     let g_score = g_score.clone();
                     let maze_grid = maze_grid.clone();
 
@@ -227,7 +358,7 @@ impl PathFinder {
                     g_score_write[hashed_next_pos] = tentative_score;
                     f_score[hashed_next_pos] = f_score_next;
                     paths[hashed_next_pos] = hashed_pos;
-                    heap.push((hashed_next_pos,  f_score_next));
+                    heap.push((hashed_next_pos, f_score_next));
                 }
 
                 if hashed_next_pos == dest.x * width + dest.y {
